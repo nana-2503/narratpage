@@ -97,7 +97,7 @@ export default function Home() {
         )}
 
         {data && data.items.length > 0 && (
-          <ul className="border border-border">
+          <ul className="overflow-hidden rounded-md border border-border">
             {data.items.map((post, i) => (
               <li key={post.id} className={i > 0 ? 'border-t border-border' : undefined}>
                 <Link

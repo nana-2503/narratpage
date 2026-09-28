@@ -62,7 +62,7 @@ export default function AdminPosts() {
       {error && <p className="mt-4 text-sm text-destructive">{error.message}</p>}
 
       {/* 桌面端：表格，单元格单行不换行 */}
-      <div className="mt-4 hidden border border-border md:block">
+      <div className="mt-4 hidden overflow-hidden rounded-md border border-border md:block">
         <Table>
           <TableHeader>
             <TableRow className="text-xs text-muted-foreground hover:bg-transparent">
@@ -120,7 +120,7 @@ export default function AdminPosts() {
       </div>
 
       {/* 移动端：堆叠列表，单层边框 */}
-      <ul className="mt-4 border border-border md:hidden">
+      <ul className="mt-4 overflow-hidden rounded-md border border-border md:hidden">
         {posts.length === 0 && (
           <li className="px-3 py-8 text-center text-sm text-muted-foreground">
             {loading ? '加载中' : '暂无文章'}

@@ -53,7 +53,7 @@ export default function AdminComments() {
 
       {error && <p className="mt-4 text-sm text-destructive">{error.message}</p>}
 
-      <ul className="mt-4 border border-border">
+      <ul className="mt-4 overflow-hidden rounded-md border border-border">
         {comments.length === 0 && (
           <li className="px-3 py-8 text-center text-sm text-muted-foreground">
             {loading ? '加载中' : '暂无评论'}

@@ -67,7 +67,7 @@ export default function AdminCategories() {
 
       {error && <p className="mt-4 text-sm text-destructive">{error.message}</p>}
 
-      <ul className="mt-4 border border-border">
+      <ul className="mt-4 overflow-hidden rounded-md border border-border">
         {categories.length === 0 && (
           <li className="px-3 py-8 text-center text-sm text-muted-foreground">暂无分类</li>
         )}

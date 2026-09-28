@@ -133,7 +133,7 @@ export default function PostDetail() {
 
         <section>
           <h2 className="text-sm font-semibold">评论 {comments.length}</h2>
-          <ul className="mt-3 border border-border">
+          <ul className="mt-3 overflow-hidden rounded-md border border-border">
             {comments.length === 0 && (
               <li className="px-3 py-6 text-center text-sm text-muted-foreground">暂无评论</li>
             )}

@@ -176,6 +176,7 @@
 }
 .md-body code {
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 0.1em 0.35em;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
@@ -183,11 +184,13 @@
 .md-body pre {
   margin: 1em 0;
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 0.85em 1em;
   overflow-x: auto;
 }
 .md-body pre code {
   border: 0;
+  border-radius: 0;
   padding: 0;
   font-size: 0.85em;
 }
