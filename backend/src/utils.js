@@ -20,3 +20,13 @@ export function slugify(text, fallbackPrefix) {
 export function escapeLike(value) {
   return String(value).replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
+
+/** 转义 XML 文本节点（RSS 输出用） */
+export function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}

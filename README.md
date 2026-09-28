@@ -51,6 +51,15 @@ docker run -d -p 3000:3000 -v blog-data:/data -e JWT_SECRET=your-secret blog-api
 
 - 站点：http://localhost:8080（方式 1/2）或 http://localhost:3000（方式 3/4 后端直跑）
 - 管理后台：`/admin`（默认 admin / admin123，首次登录后请尽快修改）
+- RSS 订阅：`/api/rss.xml`（最新 20 篇已发布文章，链接地址由 `SITE_URL` 决定）
+
+## 功能
+
+- 公开站点：文章列表（分类筛选 / 标题搜索 / 分页）、Markdown 正文、
+  上下篇导航、阅读时长、SEO meta、明暗主题切换
+- 管理后台：文章编辑（Markdown 实时预览、草稿/发布）、评论审核、分类管理、
+  账号密码修改
+- 安全：登录限流（同 IP 每分钟 10 次）、JWT 认证、评论审核机制
 
 ## 常用命令
 

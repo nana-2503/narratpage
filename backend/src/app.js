@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { seed } from './seed.js';
 import { optionalAuth } from './auth.js';
 import { rateLimit } from './rate-limit.js';
+import { feedRouter } from './routes/feed.js';
 import { authRouter } from './routes/auth.js';
 import { postsRouter } from './routes/posts.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -40,6 +41,7 @@ export function createApp() {
   });
 
   app.post('/api/auth/login', loginLimiter);
+  app.use('/api', feedRouter); // 公开 RSS 订阅源，无需登录与限流
   app.use('/api/auth', authRouter);
   app.use('/api/posts', optionalAuth, postsRouter);
   app.use('/api/categories', optionalAuth, categoriesRouter);

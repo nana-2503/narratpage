@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { api, getToken, setToken } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const navItems = [
   { to: '/admin/posts', label: '文章' },
   { to: '/admin/comments', label: '评论' },
   { to: '/admin/categories', label: '分类' },
+  { to: '/admin/account', label: '账号' },
 ]
 
 export default function AdminLayout() {
@@ -63,6 +65,7 @@ export default function AdminLayout() {
             <Button size="sm" variant="outline" onClick={logout}>
               退出
             </Button>
+            <ThemeToggle />
           </nav>
         </div>
       </header>

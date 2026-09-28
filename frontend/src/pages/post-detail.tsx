@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, isNotFound } from '@/lib/api'
-import { formatDate, formatDateTime, renderMarkdown } from '@/lib/markdown'
+import { estimateReadingTime, formatDate, formatDateTime, renderMarkdown } from '@/lib/markdown'
+import { setPageMeta } from '@/lib/meta'
 import { useAsync } from '@/hooks/use-async'
 import { SiteHeader } from '@/components/site-header'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +23,17 @@ export default function PostDetail() {
     [post?.id],
   )
   const comments = commentsData?.items ?? []
+
+  const { data: neighbors } = useAsync(
+    () => (post ? api.getPostNeighbors(slug) : Promise.resolve({ prev: null, next: null })),
+    [post?.id, slug],
+  )
+
+  // 文章元信息同步到 document.title / description / OG（爬虫与分享卡片用）
+  useEffect(() => {
+    if (!post) return
+    setPageMeta(post.title, post.summary || (post.content || '').slice(0, 200))
+  }, [post])
 
   const [author, setAuthor] = useState('')
   const [content, setContent] = useState('')
@@ -80,6 +92,8 @@ export default function PostDetail() {
             <span className="tabular-nums">{formatDate(post.published_at || post.created_at)}</span>
             <span aria-hidden>·</span>
             <span className="tabular-nums">{post.views} 阅读</span>
+            <span aria-hidden>·</span>
+            <span className="tabular-nums">{estimateReadingTime(post.content || '')}</span>
           </div>
           <Separator className="my-5" />
           <div
@@ -87,6 +101,33 @@ export default function PostDetail() {
             dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content || '') }}
           />
         </article>
+
+        {(neighbors?.prev || neighbors?.next) && (
+          <nav className="mt-6 flex items-center justify-between gap-3 text-sm">
+            {neighbors.prev ? (
+              <Link
+                to={`/post/${neighbors.prev.slug}`}
+                className="min-w-0 flex-1 truncate text-muted-foreground hover:text-foreground"
+                title={neighbors.prev.title}
+              >
+                ← {neighbors.prev.title}
+              </Link>
+            ) : (
+              <span />
+            )}
+            {neighbors.next ? (
+              <Link
+                to={`/post/${neighbors.next.slug}`}
+                className="min-w-0 flex-1 truncate text-right text-muted-foreground hover:text-foreground"
+                title={neighbors.next.title}
+              >
+                {neighbors.next.title} →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </nav>
+        )}
 
         <Separator className="my-8" />
 

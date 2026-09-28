@@ -350,6 +350,101 @@ test('评论：提交后待审核，游客只见已通过', async () => {
   assert.equal(res.status, 200);
 });
 
+// ---------- RSS 订阅 ----------
+
+test('GET /rss.xml 返回合法 RSS 且内容已转义', async () => {
+  const res = await fetch(`${base}/rss.xml`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/rss\+xml/);
+  const xml = await res.text();
+  assert.match(xml, /<\?xml version="1\.0" encoding="UTF-8"\?>/);
+  assert.match(xml, /<rss version="2\.0">/);
+  assert.match(xml, /<channel>/);
+  assert.match(xml, /叙页博客系统/);
+  assert.match(xml, /<lastBuildDate>/);
+  // seed 的已发布文章标题出现在 feed 中
+  assert.ok(xml.includes('为什么选择 SQLite 作为博客数据库'));
+
+  // 标题中的 XML 特殊字符必须转义，不能原样输出
+  await api('POST', '/posts', {
+    title: 'XML <b>转义</b> "引号" & 符号',
+    status: 'published',
+  }, { token: true });
+  const after = await (await fetch(`${base}/rss.xml`)).text();
+  assert.ok(after.includes('XML &lt;b&gt;转义&lt;/b&gt;'));
+  assert.ok(!after.includes('<b>转义</b>'));
+});
+
+// ---------- 上下篇 ----------
+
+test('GET /posts/:slug/neighbors 返回按时间排序的上下篇', async () => {
+  // 依次创建三篇已发布文章（published_at 带毫秒，创建序即时序）
+  const slugs = [];
+  for (const title of ['邻居文章甲', '邻居文章乙', '邻居文章丙']) {
+    const created = await api('POST', '/posts', { title, status: 'published' }, { token: true });
+    slugs.push(created.body.slug);
+  }
+  const res = await api('GET', `/posts/${slugs[1]}/neighbors`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.prev.slug, slugs[2]); // 更新的
+  assert.equal(res.body.next.slug, slugs[0]); // 更旧的
+
+  // 三篇之中：较旧的两篇的 prev 只能是更新的（本篇或外部更新的文章），不可能反向
+  const first = await api('GET', `/posts/${slugs[2]}/neighbors`);
+  assert.ok(first.body.prev === null || !slugs.includes(first.body.prev.slug));
+  const last = await api('GET', `/posts/${slugs[0]}/neighbors`);
+  assert.ok(last.body.next === null || !slugs.includes(last.body.next.slug));
+
+  // 游客可访问；不存在/未发布的文章 404
+  const guest = await api('GET', `/posts/${slugs[1]}/neighbors`);
+  assert.equal(guest.status, 200);
+  const missing = await api('GET', '/posts/no-such-post/neighbors');
+  assert.equal(missing.status, 404);
+  const draft = await api('POST', '/posts', { title: '草稿邻居' }, { token: true });
+  const draftRes = await api('GET', `/posts/${draft.body.slug}/neighbors`);
+  assert.equal(draftRes.status, 404);
+
+  // 同一秒发布的文章用 id 兜底形成全序：neighbors 必须与列表排序互为一致
+  const list = await api('GET', '/posts?pageSize=50');
+  const order = list.body.items.map((p) => p.slug);
+  for (const s of ['why-sqlite-for-blog', 'markdown-writing-pipeline', 'restart-blogging']) {
+    const idx = order.indexOf(s);
+    assert.ok(idx >= 0, `${s} 应在已发布列表中`);
+    const r = await api('GET', `/posts/${s}/neighbors`);
+    const expectPrev = idx > 0 ? order[idx - 1] : null; // 列表中更靠前 = 更新
+    const expectNext = idx < order.length - 1 ? order[idx + 1] : null;
+    assert.equal(r.body.prev?.slug ?? null, expectPrev);
+    assert.equal(r.body.next?.slug ?? null, expectNext);
+  }
+});
+
+// ---------- 修改密码 ----------
+
+test('POST /auth/password 修改密码并即时生效', async () => {
+  // 未登录 401
+  let res = await api('POST', '/auth/password', { oldPassword: 'x', newPassword: 'y' });
+  assert.equal(res.status, 401);
+
+  // 原密码错误 401
+  res = await api('POST', '/auth/password', { oldPassword: 'wrong-old', newPassword: 'newpass123' }, { token: true });
+  assert.equal(res.status, 401);
+
+  // 新密码过短 400
+  res = await api('POST', '/auth/password', { oldPassword: 'test-password-123', newPassword: 'short' }, { token: true });
+  assert.equal(res.status, 400);
+
+  // 正常修改
+  res = await api('POST', '/auth/password', { oldPassword: 'test-password-123', newPassword: 'brand-new-pass-456' }, { token: true });
+  assert.equal(res.status, 200);
+
+  // 新密码可登录，旧密码失效
+  res = await api('POST', '/auth/login', { username: 'admin', password: 'brand-new-pass-456' });
+  assert.equal(res.status, 200);
+  assert.ok(res.body.token);
+  res = await api('POST', '/auth/login', { username: 'admin', password: 'test-password-123' });
+  assert.equal(res.status, 401);
+});
+
 // ---------- 限流 ----------
 
 test('登录限流：第 11 次尝试返回 429', async () => {

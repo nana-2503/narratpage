@@ -54,7 +54,7 @@ postsRouter.get('/', (req, res) => {
   const items = db
     .prepare(
       `${listSelect} ${whereSql}
-       ORDER BY COALESCE(p.published_at, p.created_at) DESC
+       ORDER BY COALESCE(p.published_at, p.created_at) DESC, p.id DESC
        LIMIT ? OFFSET ?`
     )
     .all(...params, pageSize, (page - 1) * pageSize);
@@ -83,6 +83,35 @@ postsRouter.get('/:slug', (req, res) => {
   db.prepare('UPDATE posts SET views = views + 1 WHERE id = ?').run(post.id);
   post.views += 1;
   res.json(post);
+});
+
+// GET /api/posts/:slug/neighbors — 详情页上下篇（按发布时间，仅已发布文章）
+// 同一秒发布的文章用 id 兜底，保证全序关系稳定
+postsRouter.get('/:slug/neighbors', (req, res) => {
+  const cur = db
+    .prepare(`SELECT id, published_at, created_at FROM posts WHERE slug = ? AND status = 'published'`)
+    .get(req.params.slug);
+  if (!cur) {
+    return res.status(404).json({ error: '文章不存在' });
+  }
+  // prev = 发布时间更晚（更新）的一篇；next = 更早（更旧）的一篇
+  const prev = db
+    .prepare(
+      `SELECT slug, title FROM posts
+       WHERE status = 'published'
+         AND (COALESCE(published_at, created_at), id) > (COALESCE(?, ?), ?)
+       ORDER BY COALESCE(published_at, created_at) ASC, id ASC LIMIT 1`
+    )
+    .get(cur.published_at, cur.created_at, cur.id);
+  const next = db
+    .prepare(
+      `SELECT slug, title FROM posts
+       WHERE status = 'published'
+         AND (COALESCE(published_at, created_at), id) < (COALESCE(?, ?), ?)
+       ORDER BY COALESCE(published_at, created_at) DESC, id DESC LIMIT 1`
+    )
+    .get(cur.published_at, cur.created_at, cur.id);
+  res.json({ prev: prev ?? null, next: next ?? null });
 });
 
 /**

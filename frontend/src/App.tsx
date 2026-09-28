@@ -10,6 +10,7 @@ const AdminPosts = lazy(() => import('@/pages/admin-posts'))
 const AdminPostEditor = lazy(() => import('@/pages/admin-post-editor'))
 const AdminComments = lazy(() => import('@/pages/admin-comments'))
 const AdminCategories = lazy(() => import('@/pages/admin-categories'))
+const AdminAccount = lazy(() => import('@/pages/admin-account'))
 
 function AdminFallback() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="posts/:id" element={<AdminPostEditor />} />
           <Route path="comments" element={<AdminComments />} />
           <Route path="categories" element={<AdminCategories />} />
+          <Route path="account" element={<AdminAccount />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -87,6 +87,12 @@ export interface PostListResult {
   totalPages: number;
 }
 
+/** 详情页上下篇（prev = 更新的文章，next = 更早的文章） */
+export interface PostNeighbors {
+  prev: { slug: string; title: string } | null;
+  next: { slug: string; title: string } | null;
+}
+
 /** 文章表单提交体；slug 为空串表示由后端自动生成 */
 export interface PostInput {
   title: string;
@@ -105,6 +111,11 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => request<{ username: string }>('/auth/me'),
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<{ ok: true }>('/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    }),
 
   listPosts: (params: { page?: number; pageSize?: number; category?: string; q?: string; all?: boolean } = {}) => {
     const query = new URLSearchParams();
@@ -116,6 +127,8 @@ export const api = {
     return request<PostListResult>(`/posts?${query.toString()}`);
   },
   getPost: (slug: string) => request<Post>(`/posts/${encodeURIComponent(slug)}`),
+  getPostNeighbors: (slug: string) =>
+    request<PostNeighbors>(`/posts/${encodeURIComponent(slug)}/neighbors`),
   getPostById: (id: number) => request<Post>(`/posts/id/${id}`),
   createPost: (body: Partial<Post> & { content: string }) =>
     request<{ id: number; slug: string }>('/posts', { method: 'POST', body: JSON.stringify(body) }),

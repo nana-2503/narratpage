@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Category, Post, PostInput } from '@/lib/api'
+import { renderMarkdown } from '@/lib/markdown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +33,7 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
   const [content, setContent] = useState(post?.content ?? '')
   const [categoryId, setCategoryId] = useState(post?.category_id ? String(post.category_id) : '')
   const [published, setPublished] = useState(post?.status === 'published')
+  const [preview, setPreview] = useState(false)
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,14 +117,32 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="content">正文（Markdown）</Label>
-        <textarea
-          id="content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={16}
-          className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm outline-none focus-visible:border-ring"
-        />
+        <div className="flex items-center justify-between">
+          <Label htmlFor="content">正文（Markdown）</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPreview((v) => !v)}
+            aria-label={preview ? '切换到编辑' : '切换到预览'}
+          >
+            {preview ? '编辑' : '预览'}
+          </Button>
+        </div>
+        {preview ? (
+          <div
+            className="md-body min-h-64 rounded-md border border-input px-3 py-2 text-sm"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+          />
+        ) : (
+          <textarea
+            id="content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={16}
+            className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm outline-none focus-visible:border-ring"
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-2">

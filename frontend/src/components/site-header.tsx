@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Menu } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Sheet,
   SheetContent,
@@ -13,6 +14,17 @@ const links = [
   { to: '/', label: '文章' },
   { to: '/admin', label: '后台' },
 ]
+
+// RSS 订阅入口（真实链接，非 SPA 路由）
+const rssLink = (
+  <a
+    href="/api/rss.xml"
+    className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+    aria-label="RSS 订阅"
+  >
+    RSS
+  </a>
+)
 
 export function SiteHeader() {
   const navigate = useNavigate()
@@ -28,6 +40,8 @@ export function SiteHeader() {
               {l.label}
             </Button>
           ))}
+          {rssLink}
+          <ThemeToggle />
         </nav>
         <div className="ml-auto md:hidden">
           <Sheet>
@@ -53,7 +67,17 @@ export function SiteHeader() {
                     {l.label}
                   </Button>
                 ))}
+                <a
+                  href="/api/rss.xml"
+                  className={buttonVariants({ variant: 'ghost', className: 'justify-start' })}
+                  aria-label="RSS 订阅"
+                >
+                  RSS
+                </a>
               </nav>
+              <div className="px-4">
+                <ThemeToggle />
+              </div>
             </SheetContent>
           </Sheet>
         </div>
