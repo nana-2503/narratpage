@@ -1,4 +1,4 @@
-# 博客系统
+# 叙页博客系统
 
 Node.js (Express) + SQLite 后端，React (Vite + shadcn) 前端，Docker Compose 一键启动。
 
