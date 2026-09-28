@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Category, Post, PostInput } from '@/lib/api'
 import { renderMarkdown } from '@/lib/markdown'
 import { Button } from '@/components/ui/button'
+import { MarkdownEditor } from '@/components/markdown-editor'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -118,7 +119,7 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="content">正文（Markdown）</Label>
+          <Label>正文（Markdown）</Label>
           <Button
             type="button"
             variant="ghost"
@@ -135,12 +136,10 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
             dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
           />
         ) : (
-          <textarea
-            id="content"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={16}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm outline-none focus-visible:border-ring"
+          <MarkdownEditor
+            initialValue={post?.content ?? ''}
+            onChange={setContent}
+            placeholder="开始写作，支持 Markdown 语法与工具栏快捷操作…"
           />
         )}
       </div>

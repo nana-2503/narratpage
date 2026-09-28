@@ -57,8 +57,8 @@ docker run -d -p 3000:3000 -v blog-data:/data -e JWT_SECRET=your-secret blog-api
 
 - 公开站点：文章列表（分类筛选 / 标题搜索 / 分页）、Markdown 正文、
   上下篇导航、阅读时长、SEO meta、明暗主题切换
-- 管理后台：文章编辑（Markdown 实时预览、草稿/发布）、评论审核、分类管理、
-  账号密码修改
+- 管理后台：文章编辑（Tiptap 富文本编辑器，Markdown 双向转换、实时预览）、
+  草稿/发布、评论审核、分类管理、账号密码修改
 - 安全：登录限流（同 IP 每分钟 10 次）、JWT 认证、评论审核机制
 
 ## 常用命令

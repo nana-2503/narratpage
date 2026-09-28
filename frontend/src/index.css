@@ -128,6 +128,20 @@
     @apply font-sans;
     }
 }
+/* Tiptap 编辑器容器 */
+.md-editor .ProseMirror {
+  min-height: 16rem;
+  padding: 0.75rem 0.75rem;
+  outline: none;
+}
+.md-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* Markdown 正文排版：细边框分隔，不用卡片与阴影 */
 .md-body h2 {
   margin: 1.75em 0 0.6em;
