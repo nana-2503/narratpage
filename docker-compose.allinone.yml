@@ -1,0 +1,22 @@
+# 单容器一体化部署：一个镜像同时提供前端与 API
+# 启动: docker compose -f docker-compose.allinone.yml up --build -d
+# 站点: http://localhost:8080
+services:
+  blog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BLOG_PORT:-8080}:3000"
+    environment:
+      PORT: 3000
+      DATA_DIR: /data
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-jwt-secret}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - blog-data:/data
+
+volumes:
+  blog-data:
