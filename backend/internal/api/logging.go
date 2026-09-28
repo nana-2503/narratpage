@@ -1,17 +1,10 @@
 package api
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"time"
 )
-
-// Deps 路由依赖
-type Deps struct {
-	DB        *sql.DB
-	UploadDir string
-}
 
 // requestLogger 轻量请求日志：方法 路径 状态码 耗时
 func requestLogger(next http.Handler) http.Handler {

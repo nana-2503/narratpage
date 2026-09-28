@@ -46,10 +46,6 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	sharedDir = tmp
-	sharedDB, err = db.Open(tmp)
-	if err != nil {
-		panic(err)
-	}
 	sharedCfg = config.Config{
 		Port:          "0",
 		DataDir:       tmp,
@@ -58,6 +54,11 @@ func TestMain(m *testing.M) {
 		AdminUsername: "admin",
 		AdminPassword: "test-password-123",
 		SiteURL:       "http://localhost:8080",
+		DBType:        "sqlite",
+	}
+	sharedDB, err = db.Open(sharedCfg)
+	if err != nil {
+		panic(err)
 	}
 	if err := seed.Run(sharedDB, sharedCfg); err != nil {
 		panic(err)

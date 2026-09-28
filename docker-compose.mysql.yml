@@ -1,0 +1,30 @@
+# MySQL 扩展：与 docker-compose.yml 组合使用
+# 启动: docker compose -f docker-compose.yml -f docker-compose.mysql.yml up --build -d
+services:
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_TYPE: mysql
+      DB_DSN: ${DB_DSN:-${DB_USER:-narratpage}:${DB_PASSWORD:-narratpage}@tcp(db:3306)/blog?charset=utf8mb4&parseTime=true&loc=Local}
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-blog}
+      MYSQL_USER: ${DB_USER:-narratpage}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-narratpage}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  mysql-data:

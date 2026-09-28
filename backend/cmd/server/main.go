@@ -14,6 +14,7 @@ import (
 	"narratpage/internal/api"
 	"narratpage/internal/config"
 	"narratpage/internal/db"
+	"narratpage/internal/redis"
 	"narratpage/internal/seed"
 )
 
@@ -21,14 +22,29 @@ func main() {
 	log.SetFlags(log.LstdFlags)
 	cfg := config.Load()
 
-	database, err := db.Open(cfg.DataDir)
+	database, err := db.Open(cfg)
 	if err != nil {
 		log.Fatalf("[blog] 数据库打开失败: %v", err)
 	}
 	defer database.Close()
 
-	if err := seed.Run(database, cfg); err != nil {
-		log.Fatalf("[blog] 种子数据失败: %v", err)
+	// 检查是否已安装，未安装时写入种子数据
+	installed, err := api.CheckInstalled(database)
+	if err != nil {
+		log.Fatalf("[blog] 安装状态检查失败: %v", err)
+	}
+	if !installed {
+		if err := seed.Run(database, cfg); err != nil {
+			log.Fatalf("[blog] 种子数据失败: %v", err)
+		}
+	}
+
+	redisCli, err := redis.New(cfg)
+	if err != nil {
+		log.Fatalf("[blog] Redis 连接失败: %v", err)
+	}
+	if redisCli != nil {
+		defer redisCli.Close()
 	}
 
 	uploadDir := filepath.Join(cfg.DataDir, "uploads")
@@ -40,7 +56,11 @@ func main() {
 		cfg.FrontendDist = resolveFrontendDist()
 	}
 
-	handler := api.NewRouter(cfg, api.Deps{DB: database, UploadDir: uploadDir})
+	handler := api.NewRouter(cfg, api.Deps{
+		DB:        database,
+		UploadDir: uploadDir,
+		Redis:     redisCli,
+	})
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -66,6 +86,9 @@ func main() {
 		log.Printf("[blog] 关闭超时: %v", err)
 	}
 	database.Close()
+	if redisCli != nil {
+		redisCli.Close()
+	}
 }
 
 // resolveFrontendDist 未显式指定时按可执行文件目录推断（一体化部署约定）

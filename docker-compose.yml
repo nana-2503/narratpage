@@ -9,8 +9,12 @@ services:
       SITE_URL: ${SITE_URL:-http://localhost:8080}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      DB_TYPE: ${DB_TYPE:-sqlite}
+      DB_DSN: ${DB_DSN:-}
+      REDIS_ENABLED: ${REDIS_ENABLED:-false}
+      REDIS_URL: ${REDIS_URL:-}
     volumes:
-      - sqlite-data:/data
+      - blog-data:/data
     healthcheck:
       test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -28,4 +32,4 @@ services:
         condition: service_healthy
 
 volumes:
-  sqlite-data:
+  blog-data:

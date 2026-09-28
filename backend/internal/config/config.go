@@ -2,10 +2,11 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
-// Config 运行时配置（环境变量驱动，默认值与 Node 版一致）
+// Config 运行时配置（环境变量驱动）。
 type Config struct {
 	Port          string
 	DataDir       string
@@ -15,6 +16,14 @@ type Config struct {
 	AdminUsername string
 	AdminPassword string
 	SiteURL       string
+
+	// 数据库
+	DBType string // sqlite | mysql | pgsql
+	DBDSN  string
+
+	// Redis（可选）
+	RedisEnabled bool
+	RedisURL     string
 }
 
 func Load() Config {
@@ -27,6 +36,10 @@ func Load() Config {
 		AdminUsername: envOr("ADMIN_USERNAME", "admin"),
 		AdminPassword: envOr("ADMIN_PASSWORD", "admin123"),
 		SiteURL:       trimSlash(envOr("SITE_URL", "http://localhost:8080")),
+		DBType:        envOr("DB_TYPE", "sqlite"),
+		DBDSN:         envOr("DB_DSN", ""),
+		RedisEnabled:  boolOr("REDIS_ENABLED", false),
+		RedisURL:      envOr("REDIS_URL", ""),
 	}
 }
 
@@ -47,6 +60,18 @@ func durOr(key string, def time.Duration) time.Duration {
 		return def
 	}
 	return d
+}
+
+func boolOr(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return def
+	}
+	return b
 }
 
 func trimSlash(s string) string {

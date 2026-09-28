@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"strings"
@@ -9,11 +10,20 @@ import (
 	"narratpage/internal/config"
 	"narratpage/internal/httpx"
 	"narratpage/internal/ratelimit"
+	"narratpage/internal/redis"
 )
 
-// NewRouter 组装全部路由与中间件（API 契约与 Node 版逐条一致）
+// Deps 处理器依赖。
+type Deps struct {
+	DB        *sql.DB
+	UploadDir string
+	Redis     *redis.Client
+}
+
+// NewRouter 组装全部路由与中间件。
 func NewRouter(cfg config.Config, deps Deps) http.Handler {
 	db := deps.DB
+	dbType := cfg.DBType
 	mux := http.NewServeMux()
 	mw := auth.NewMiddleware(cfg.JWTSecret)
 	authH := newAuthHandlers(db, cfg, mw)
@@ -23,8 +33,15 @@ func NewRouter(cfg config.Config, deps Deps) http.Handler {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
 
+	// 安装相关（公开）
+	mux.HandleFunc("GET /api/install/status", installStatusHandler(db, cfg))
+	mux.HandleFunc("POST /api/install", installHandler)
+
 	// 登录限流：同一 IP 每分钟最多 10 次（仅 POST /api/auth/login）
-	loginLimiter := ratelimit.New(60_000_000_000, 10, "登录尝试过于频繁，请 1 分钟后再试")
+	loginLimiter := ratelimit.New(
+		60_000_000_000, 10, "登录尝试过于频繁，请 1 分钟后再试",
+		deps.Redis.RDB(), "login",
+	)
 	mux.HandleFunc("POST /api/auth/login", loginLimiter.Wrap(authH.login))
 	mux.Handle("GET /api/auth/me", mw.Require(http.HandlerFunc(authH.me)))
 	mux.Handle("POST /api/auth/password", mw.Require(http.HandlerFunc(authH.changePassword)))
@@ -38,27 +55,25 @@ func NewRouter(cfg config.Config, deps Deps) http.Handler {
 	mux.Handle("POST /api/uploads", mw.Require(uploadImage(deps.UploadDir)))
 
 	// 文章（列表/详情对游客开放，写操作需登录）
-	mux.Handle("GET /api/posts", mw.Optional(listPosts(db)))
-	mux.Handle("GET /api/posts/id/{id}", mw.Require(getPostByID(db)))
-	// neighbors 用 /neighbors/{slug} 形式：若放在 {slug}/neighbors 会与
-	// /id/{id} 的字面段产生无法消歧的冲突（/posts/id/neighbors 双重匹配）
-	mux.Handle("GET /api/posts/neighbors/{slug}", mw.Optional(getNeighbors(db)))
-	mux.Handle("GET /api/posts/{slug}", mw.Optional(getPostBySlug(db)))
-	mux.Handle("POST /api/posts", mw.Require(createPost(db)))
-	mux.Handle("PUT /api/posts/{id}", mw.Require(updatePost(db)))
-	mux.Handle("DELETE /api/posts/{id}", mw.Require(deletePost(db)))
+	mux.Handle("GET /api/posts", mw.Optional(listPosts(dbType)(db)))
+	mux.Handle("GET /api/posts/id/{id}", mw.Require(getPostByID(dbType)(db)))
+	mux.Handle("GET /api/posts/neighbors/{slug}", mw.Optional(getNeighbors(dbType)(db)))
+	mux.Handle("GET /api/posts/{slug}", mw.Optional(getPostBySlug(dbType)(db)))
+	mux.Handle("POST /api/posts", mw.Require(createPost(dbType)(db)))
+	mux.Handle("PUT /api/posts/{id}", mw.Require(updatePost(dbType)(db)))
+	mux.Handle("DELETE /api/posts/{id}", mw.Require(deletePost(dbType)(db)))
 
 	// 分类
-	mux.HandleFunc("GET /api/categories", listCategories(db))
-	mux.Handle("POST /api/categories", mw.Require(createCategory(db)))
-	mux.Handle("PUT /api/categories/{id}", mw.Require(updateCategory(db)))
-	mux.Handle("DELETE /api/categories/{id}", mw.Require(deleteCategory(db)))
+	mux.HandleFunc("GET /api/categories", listCategories(dbType)(db))
+	mux.Handle("POST /api/categories", mw.Require(createCategory(dbType)(db)))
+	mux.Handle("PUT /api/categories/{id}", mw.Require(updateCategory(dbType)(db)))
+	mux.Handle("DELETE /api/categories/{id}", mw.Require(deleteCategory(dbType)(db)))
 
 	// 评论
-	mux.Handle("GET /api/comments", mw.Optional(listComments(db)))
-	mux.HandleFunc("POST /api/comments", createComment(db))
-	mux.Handle("PUT /api/comments/{id}", mw.Require(moderateComment(db)))
-	mux.Handle("DELETE /api/comments/{id}", mw.Require(deleteComment(db)))
+	mux.Handle("GET /api/comments", mw.Optional(listComments(dbType)(db)))
+	mux.HandleFunc("POST /api/comments", createComment(dbType)(db))
+	mux.Handle("PUT /api/comments/{id}", mw.Require(moderateComment(dbType)(db)))
+	mux.Handle("DELETE /api/comments/{id}", mw.Require(deleteComment(dbType)(db)))
 
 	// API 统一 404
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

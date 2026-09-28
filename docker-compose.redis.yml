@@ -1,0 +1,26 @@
+# Redis 扩展：与 docker-compose.yml 组合使用
+# 启动: docker compose -f docker-compose.yml -f docker-compose.redis.yml up --build -d
+services:
+  backend:
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ENABLED: true
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 5
+
+volumes:
+  redis-data:

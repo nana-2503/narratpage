@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Monitor, Moon, RotateCcw, Sun, Database } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   DEFAULT_RADIUS,
   RADIUS_PRESETS,
@@ -26,6 +27,9 @@ export default function AdminSettings() {
   const { theme, setTheme } = useTheme()
   const [radius, setRadius] = useState(loadRadius)
   const radiusRem = parseRadius(radius)
+  const [dbType, setDbType] = useState('sqlite')
+  const [redisEnabled, setRedisEnabled] = useState(false)
+  const [siteUrl, setSiteUrl] = useState('')
 
   // 圆角变化即时生效（CSS 变量）并持久化
   useEffect(() => {
@@ -33,10 +37,55 @@ export default function AdminSettings() {
     saveRadius(radius)
   }, [radius])
 
-  return (
-    <div className="flex max-w-lg flex-col gap-8">
-      <h1 className="text-sm font-semibold">主题设置</h1>
+  useEffect(() => {
+    // 加载安装时保存的配置
+    try {
+      const saved = localStorage.getItem('blog_config')
+      if (saved) {
+        const config = JSON.parse(saved)
+        setDbType(config.DB_TYPE || 'sqlite')
+        setRedisEnabled(config.REDIS_ENABLED === 'true')
+        setSiteUrl(config.SITE_URL || '')
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
 
+  return (
+    <div className="flex max-w-2xl flex-col gap-8">
+      <h1 className="text-sm font-semibold">设置</h1>
+
+      {/* 系统信息 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Database className="size-4" /> 系统信息
+          </CardTitle>
+          <CardDescription>当前运行环境与存储配置</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">数据库</span>
+              <p className="mt-0.5 font-medium capitalize">{dbType}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Redis</span>
+              <p className="mt-0.5 font-medium">{redisEnabled ? '已启用' : '未启用'}</p>
+            </div>
+            <div className="col-span-2">
+              <span className="text-muted-foreground">站点地址</span>
+              <p className="mt-0.5 font-medium truncate">{siteUrl || '-'}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            如需修改数据库或 Redis 配置，请更新环境变量后重启服务。
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 外观设置 */}
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-medium text-muted-foreground">外观模式</h2>
         <div className="flex gap-1">

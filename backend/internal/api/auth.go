@@ -8,19 +8,21 @@ import (
 
 	"narratpage/internal/auth"
 	"narratpage/internal/config"
+	"narratpage/internal/db"
 	"narratpage/internal/httpx"
 )
 
 // authHandlers 认证相关接口
 type authHandlers struct {
 	db     *sql.DB
+	dbType string
 	secret string
 	expiry time.Duration
 	mw     *auth.Middleware
 }
 
 func newAuthHandlers(db *sql.DB, cfg config.Config, mw *auth.Middleware) *authHandlers {
-	return &authHandlers{db: db, secret: cfg.JWTSecret, expiry: cfg.JWTExpiry, mw: mw}
+	return &authHandlers{db: db, dbType: cfg.DBType, secret: cfg.JWTSecret, expiry: cfg.JWTExpiry, mw: mw}
 }
 
 type loginRequest struct {
@@ -40,8 +42,9 @@ func (h *authHandlers) login(w http.ResponseWriter, r *http.Request) {
 	}
 	var id int
 	var hash, username string
-	err := h.db.QueryRow(`SELECT id, username, password_hash FROM users WHERE username = ?`, req.Username).
-		Scan(&id, &username, &hash)
+	err := db.QueryRowPlaceholder(h.db, h.dbType,
+		`SELECT id, username, password_hash FROM users WHERE username = ?`, req.Username,
+	).Scan(&id, &username, &hash)
 	if err == sql.ErrNoRows || !auth.CheckPassword(req.Password, hash) {
 		httpx.WriteError(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
@@ -98,7 +101,9 @@ func (h *authHandlers) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var hash string
-	err := h.db.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, claims.Sub).Scan(&hash)
+	err := db.QueryRowPlaceholder(h.db, h.dbType,
+		`SELECT password_hash FROM users WHERE id = ?`, claims.Sub,
+	).Scan(&hash)
 	if err == sql.ErrNoRows {
 		httpx.WriteError(w, http.StatusNotFound, "用户不存在")
 		return
@@ -116,7 +121,9 @@ func (h *authHandlers) changePassword(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
 		return
 	}
-	if _, err := h.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, newHash, claims.Sub); err != nil {
+	if _, err := db.ExecPlaceholder(h.db, h.dbType,
+		`UPDATE users SET password_hash = ? WHERE id = ?`, newHash, claims.Sub,
+	); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
 		return
 	}

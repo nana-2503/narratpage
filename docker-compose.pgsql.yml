@@ -1,0 +1,29 @@
+# PostgreSQL 扩展：与 docker-compose.yml 组合使用
+# 启动: docker compose -f docker-compose.yml -f docker-compose.pgsql.yml up --build -d
+services:
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_TYPE: pgsql
+      DB_DSN: ${DB_DSN:-postgres://${DB_USER:-narratpage}:${DB_PASSWORD:-narratpage}@db:5432/blog?sslmode=disable}
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-narratpage}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-narratpage}
+      POSTGRES_DB: ${DB_NAME:-blog}
+    volumes:
+      - pgsql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-narratpage}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  pgsql-data:
