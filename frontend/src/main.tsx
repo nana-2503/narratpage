@@ -5,6 +5,10 @@ import { ThemeProvider } from 'next-themes'
 import './index.css'
 import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
+import { applyRadius, loadRadius } from '@/lib/theme-settings'
+
+// 首屏渲染前应用已保存的圆角，避免刷新闪烁
+applyRadius(loadRadius())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

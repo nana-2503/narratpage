@@ -9,6 +9,7 @@ const navItems = [
   { to: '/admin/comments', label: '评论' },
   { to: '/admin/categories', label: '分类' },
   { to: '/admin/account', label: '账号' },
+  { to: '/admin/settings', label: '设置' },
 ]
 
 export default function AdminLayout() {
