@@ -1,18 +1,39 @@
-import Database from 'better-sqlite3';
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+package db
 
-export const DATA_DIR = process.env.DATA_DIR || join(import.meta.dirname, '..', 'data');
-mkdirSync(DATA_DIR, { recursive: true });
+import (
+	"database/sql"
+	"fmt"
+	"path/filepath"
 
-export const db = new Database(join(DATA_DIR, 'blog.db'));
+	_ "modernc.org/sqlite"
+)
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-// 写锁竞争时等待而非立刻 SQLITE_BUSY（WAL 下读者不阻塞，写者短暂排队）
-db.pragma('busy_timeout = 5000');
+// Open 打开 SQLite 连接并执行 schema 迁移（CREATE IF NOT EXISTS，幂等）。
+// pragma 通过 DSN 传入：WAL + 外键 + 写锁等待，与 Node 版行为一致。
+func Open(dataDir string) (*sql.DB, error) {
+	path := filepath.Join(dataDir, "blog.db")
+	dsn := fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)",
+		path,
+	)
+	d, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+	// SQLite 单写者：小连接池，避免无谓的锁竞争
+	d.SetMaxOpenConns(4)
+	if err := d.Ping(); err != nil {
+		d.Close()
+		return nil, err
+	}
+	if _, err := d.Exec(schemaSQL); err != nil {
+		d.Close()
+		return nil, err
+	}
+	return d, nil
+}
 
-db.exec(`
+const schemaSQL = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
@@ -55,4 +76,4 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, status);
-`);
+`

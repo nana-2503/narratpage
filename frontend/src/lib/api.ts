@@ -134,7 +134,7 @@ export const api = {
   },
   getPost: (slug: string) => request<Post>(`/posts/${encodeURIComponent(slug)}`),
   getPostNeighbors: (slug: string) =>
-    request<PostNeighbors>(`/posts/${encodeURIComponent(slug)}/neighbors`),
+    request<PostNeighbors>(`/posts/neighbors/${encodeURIComponent(slug)}`),
   getPostById: (id: number) => request<Post>(`/posts/id/${id}`),
   createPost: (body: Partial<Post> & { content: string }) =>
     request<{ id: number; slug: string }>('/posts', { method: 'POST', body: JSON.stringify(body) }),

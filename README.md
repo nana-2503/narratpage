@@ -1,6 +1,6 @@
 # 叙页博客系统
 
-Node.js (Express) + SQLite 后端，React (Vite + shadcn) 前端，Docker Compose 一键启动。
+Go (net/http) + SQLite 后端，React (Vite + shadcn) 前端，Docker Compose 一键启动。
 
 ## 部署方式（三选一）
 
@@ -72,10 +72,10 @@ docker compose down -v          # 停止并清空 SQLite 数据
 
 ## 测试
 
-后端自带 API 测试（node:test，无额外依赖）：
+后端自带 API 测试（Go testing，无额外依赖）：
 
 ```bash
-cd backend && npm test
+cd backend && go test ./...
 ```
 
 覆盖认证、文章 CRUD/搜索转义/权限隔离、分类、评论审核流程、登录限流、图片上传，
@@ -91,7 +91,7 @@ SQLite 数据库文件位于 `sqlite-data` 命名卷的 `/data/blog.db`，容器
 
 ```bash
 # 后端 (:3000)
-cd backend && npm install && npm run dev
+cd backend && go run ./cmd/server
 
 # 前端 (:5173，/api 自动代理到 3000)
 cd frontend && npm install && npm run dev
@@ -100,9 +100,11 @@ cd frontend && npm install && npm run dev
 ## 结构
 
 ```
-backend/    Express + better-sqlite3，JWT 管理员认证，文章/分类/评论 API
-            src/app.js 组装应用（可测试），src/rate-limit.js 登录限流
-            test/      API 测试（node:test）
+backend/    Go 标准库 net/http + modernc.org/sqlite（纯 Go 无 CGO），
+            JWT 管理员认证，文章/分类/评论 API
+            cmd/server/       入口（优雅退出）；internal/ 按关注点分层
+            （api 路由与 handler / auth / ratelimit / seed / db / config）
+            internal/api/*_test.go  API 测试（go test）
 frontend/   Vite + React + Tailwind + shadcn，公开站点 + 管理后台
 ```
 

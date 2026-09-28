@@ -1,6 +1,2 @@
-node_modules
-data
-npm-debug.log
-Dockerfile
-.dockerignore
 .git
+data
