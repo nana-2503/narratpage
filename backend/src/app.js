@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.js';
 import { postsRouter } from './routes/posts.js';
 import { categoriesRouter } from './routes/categories.js';
 import { commentsRouter } from './routes/comments.js';
+import { uploadsRouter, UPLOAD_DIR } from './routes/uploads.js';
 
 export function createApp() {
   seed(db);
@@ -46,6 +47,8 @@ export function createApp() {
   app.use('/api/posts', optionalAuth, postsRouter);
   app.use('/api/categories', optionalAuth, categoriesRouter);
   app.use('/api/comments', optionalAuth, commentsRouter);
+  app.use('/api/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', immutable: true }));
+  app.use('/api/uploads', uploadsRouter);
 
   // 统一 404 与错误处理
   app.use('/api', (_req, res) => {
@@ -76,6 +79,9 @@ export function createApp() {
     }
     if (err?.type === 'entity.too.large') {
       return res.status(413).json({ error: '请求体过大' });
+    }
+    if (err?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: '图片大小不能超过 5MB' });
     }
     if (status >= 500) {
       console.error('[error]', err);

@@ -445,6 +445,58 @@ test('POST /auth/password 修改密码并即时生效', async () => {
   assert.equal(res.status, 401);
 });
 
+// ---------- 图片上传 ----------
+
+const PNG_1x1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/** multipart 上传请求（Node 原生 FormData，勿手动设 content-type） */
+async function upload(buffer, mime, name, { auth = true } = {}) {
+  const form = new FormData();
+  form.append('file', new Blob([buffer], { type: mime }), name);
+  return fetch(`${base}/uploads`, {
+    method: 'POST',
+    headers: auth ? { authorization: `Bearer ${adminToken}` } : {},
+    body: form,
+  });
+}
+
+test('POST /uploads：仅管理员可上传，返回地址可静态访问', async () => {
+  // 游客 401
+  let res = await upload(PNG_1x1, 'image/png', 'dot.png', { auth: false });
+  assert.equal(res.status, 401);
+
+  // 管理员上传 201，随机文件名 + 原扩展名
+  res = await upload(PNG_1x1, 'image/png', 'dot.png');
+  assert.equal(res.status, 201);
+  const { url } = await res.json();
+  assert.match(url, /^\/api\/uploads\/[a-f0-9]{16}\.png$/);
+
+  // 匿名可读（文章插图场景）
+  const img = await fetch(`http://127.0.0.1:${server.address().port}${url}`);
+  assert.equal(img.status, 200);
+  assert.match(img.headers.get('content-type') || '', /image\/png/);
+  const bytes = Buffer.from(await img.arrayBuffer());
+  assert.equal(bytes.equals(PNG_1x1), true);
+});
+
+test('POST /uploads：拒绝非图片 MIME 与伪造内容', async () => {
+  // 声明 MIME 非图片 → 400
+  let res = await upload(Buffer.from('hello'), 'text/plain', 'a.txt');
+  assert.equal(res.status, 400);
+
+  // 声明 image/png 但内容不是图片（magic bytes 兜底）→ 400 且不落库
+  res = await upload(Buffer.from('<html>not an image</html>'), 'image/png', 'fake.png');
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /不是有效图片/);
+
+  // 超过 5MB → 413
+  res = await upload(Buffer.alloc(6 * 1024 * 1024, 1), 'image/png', 'big.png');
+  assert.equal(res.status, 413);
+});
+
 // ---------- 限流 ----------
 
 test('登录限流：第 11 次尝试返回 429', async () => {

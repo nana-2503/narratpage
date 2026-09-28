@@ -31,7 +31,8 @@ export function isNotFound(err: Error | null): boolean {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    ...(options.body ? { 'content-type': 'application/json' } : {}),
+    // FormData 交给浏览器自动设置 multipart boundary，不能手动声明 content-type
+    ...(typeof options.body === 'string' ? { 'content-type': 'application/json' } : {}),
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
@@ -111,6 +112,11 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => request<{ username: string }>('/auth/me'),
+  uploadImage: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ url: string }>('/uploads', { method: 'POST', body: form });
+  },
   changePassword: (oldPassword: string, newPassword: string) =>
     request<{ ok: true }>('/auth/password', {
       method: 'POST',

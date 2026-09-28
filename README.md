@@ -78,12 +78,14 @@ docker compose down -v          # 停止并清空 SQLite 数据
 cd backend && npm test
 ```
 
-覆盖认证、文章 CRUD/搜索转义/权限隔离、分类、评论审核流程、登录限流，
+覆盖认证、文章 CRUD/搜索转义/权限隔离、分类、评论审核流程、登录限流、图片上传，
 使用独立临时数据库，不影响 `sqlite-data` 卷中的数据。
 
 ## 数据
 
 SQLite 数据库文件位于 `sqlite-data` 命名卷的 `/data/blog.db`，容器重建不丢失。
+编辑器上传的图片位于同一卷的 `/data/uploads/`（随机文件名，匿名可读，同样持久化）；
+迁移时连同 `blog.db` 一起拷贝该目录。
 
 ## 本地开发
 
