@@ -54,7 +54,7 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
   }
 
   return (
-    <form onSubmit={submit} className="mt-4 flex max-w-2xl flex-col gap-4">
+    <form onSubmit={submit} className="mt-4 flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="title">标题</Label>
         <Input
@@ -97,24 +97,26 @@ export function PostForm({ post, categories, saving, onSubmit, onCancel }: PostF
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="summary">摘要</Label>
-        <Input
-          id="summary"
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          maxLength={500}
-        />
-      </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="summary">摘要</Label>
+          <Input
+            id="summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            maxLength={500}
+          />
+        </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="cover">封面图 URL</Label>
-        <Input
-          id="cover"
-          value={coverUrl}
-          onChange={(e) => setCoverUrl(e.target.value)}
-          placeholder="https://..."
-        />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="cover">封面图 URL</Label>
+          <Input
+            id="cover"
+            value={coverUrl}
+            onChange={(e) => setCoverUrl(e.target.value)}
+            placeholder="https://..."
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5">

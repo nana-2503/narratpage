@@ -49,7 +49,7 @@ export default function AdminCategories() {
   }
 
   return (
-    <div className="max-w-md">
+    <div>
       <h1 className="text-sm font-semibold">分类 {categories.length}</h1>
 
       <form onSubmit={add} className="mt-4 flex gap-2">
@@ -94,7 +94,6 @@ export default function AdminCategories() {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted-foreground">删除分类后，该分类下的文章将变为未分类。</p>
 
       <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <DialogContent className="shadow-none sm:max-w-80">

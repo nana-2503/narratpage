@@ -5,7 +5,7 @@ import PostDetail from '@/pages/post-detail'
 import AdminLogin from '@/pages/admin-login'
 import NotFound from '@/pages/not-found'
 import Install from '@/pages/install'
-import { api, getInstalled } from '@/lib/api'
+import { api, getInstalled, setInstalled as persistInstalled } from '@/lib/api'
 
 const AdminLayout = lazy(() => import('@/pages/admin-layout'))
 const AdminPosts = lazy(() => import('@/pages/admin-posts'))
@@ -24,32 +24,33 @@ function AdminFallback() {
 }
 
 function InstallRedirect({ children }: { children: React.ReactNode }) {
-  const [checking, setChecking] = useState(true)
-  const [installed, setInstalled] = useState<boolean | null>(null)
+  // 本地已标记完成时直接放行，避免首屏多一次请求与闪烁
+  const cached = getInstalled()
+  const [installed, setInstalled] = useState<boolean | null>(cached ? true : null)
+  const [checking, setChecking] = useState(!cached)
   const location = useLocation()
 
   useEffect(() => {
-    // 如果已明确标记为已安装，直接放行
-    if (getInstalled()) {
-      setInstalled(true)
-      setChecking(false)
-      return
-    }
-    api.installStatus()
+    if (cached) return
+    let ignore = false
+    api
+      .installStatus()
       .then((status) => {
-        const isInstalled = status.installed
-        setInstalled(isInstalled)
-        if (isInstalled) {
-          // 缓存安装状态
-          localStorage.setItem('blog_installed', 'true')
-        }
+        if (ignore) return
+        setInstalled(status.installed)
+        if (status.installed) persistInstalled(true)
       })
       .catch(() => {
-        // 网络错误时保守处理：不强制跳转，允许用户尝试访问
-        setInstalled(true)
+        // 网络错误时保守放行，避免把可访问的站点锁在安装页
+        if (!ignore) setInstalled(true)
       })
-      .finally(() => setChecking(false))
-  }, [location.pathname])
+      .finally(() => {
+        if (!ignore) setChecking(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [cached, location.pathname])
 
   if (checking) {
     return (
@@ -73,6 +74,9 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/post/:slug" element={<PostDetail />} />
         <Route path="/install" element={<Install />} />
+        {/* 登录页必须独立于 /admin：AdminLayout 自带登录守卫，
+            若把 login 嵌在其下，未登录时会永远卡在“加载中” */}
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"
           element={
@@ -82,7 +86,6 @@ export default function App() {
           }
         >
           <Route index element={<Navigate to="/admin/posts" replace />} />
-          <Route path="login" element={<AdminLogin />} />
           <Route path="posts" element={<AdminPosts />} />
           <Route path="posts/new" element={<AdminPostEditor />} />
           <Route path="posts/:id" element={<AdminPostEditor />} />

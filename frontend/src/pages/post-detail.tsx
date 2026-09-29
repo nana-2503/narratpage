@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 
 export default function PostDetail() {
@@ -86,8 +87,8 @@ export default function PostDetail() {
         </Link>
 
         <article className="mt-3">
-          <h1 className="text-xl font-semibold tracking-tight">{post.title}</h1>
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-balance">{post.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             {post.category_name && <Badge variant="outline">{post.category_name}</Badge>}
             <span className="tabular-nums">{formatDate(post.published_at || post.created_at)}</span>
             <span aria-hidden>·</span>
@@ -162,14 +163,13 @@ export default function PostDetail() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="content">评论内容</Label>
-              <textarea
+              <Textarea
                 id="content"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 maxLength={1000}
                 required
-                rows={3}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring"
+                rows={4}
               />
             </div>
             <Button type="submit" disabled={submitting} className="w-fit">

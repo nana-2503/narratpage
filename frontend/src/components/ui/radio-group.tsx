@@ -17,12 +17,16 @@ function RadioGroup({
   children,
   ...props
 }: React.ComponentProps<"div"> & RadioGroupContextValue) {
+  const ctx = React.useMemo(
+    () => ({ value, onValueChange, name }),
+    [value, onValueChange, name],
+  )
   return (
-    <RadioGroupContext.Provider value={{ value, onValueChange, name }}>
+    <RadioGroupContext.Provider value={ctx}>
       <div
         role="radiogroup"
         data-slot="radio-group"
-        className={cn("grid gap-3", className)}
+        className={cn("grid gap-2", className)}
         {...props}
       >
         {children}
@@ -31,33 +35,30 @@ function RadioGroup({
   )
 }
 
+/** 原生 radio：用 border 宽度模拟选中圆点，避免额外伪元素与嵌套节点 */
 function RadioGroupItem({
   className,
   value,
   ...props
-}: React.ComponentProps<"input"> & { value: string }) {
-  const ctx = React.useContext(RadioGroupContext)
-  const checked = ctx.value === value
+}: Omit<React.ComponentProps<"input">, "value" | "type"> & { value: string }) {
+  const { value: selected, onValueChange, name } = React.useContext(RadioGroupContext)
   return (
-    <div
+    <input
+      type="radio"
+      name={name}
+      value={value}
+      checked={selected === value}
+      onChange={() => onValueChange?.(value)}
       data-slot="radio-group-item"
       className={cn(
-        "border-primary text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        "size-4 shrink-0 cursor-pointer appearance-none rounded-full border border-input bg-background transition-[border-color,border-width] outline-none",
+        "checked:border-4 checked:border-primary",
+        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
-    >
-      <input
-        type="radio"
-        className="size-4 rounded-full border border-primary"
-        checked={checked}
-        {...props}
-        onChange={(e) => {
-          if (e.target.checked) {
-            ctx.onValueChange?.(value)
-          }
-        }}
-      />
-    </div>
+      {...props}
+    />
   )
 }
 

@@ -38,9 +38,9 @@ export default function AdminAccount() {
   }
 
   return (
-    <div className="max-w-md">
+    <div>
       <h1 className="text-sm font-semibold">账号</h1>
-      <form onSubmit={submit} className="mt-4 flex flex-col gap-4">
+      <form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="old-password">原密码</Label>
           <Input
@@ -74,7 +74,7 @@ export default function AdminAccount() {
             required
           />
         </div>
-        <Button type="submit" disabled={saving} className="w-fit">
+        <Button type="submit" disabled={saving} className="w-fit sm:col-span-3">
           {saving ? '保存中' : '修改密码'}
         </Button>
       </form>
