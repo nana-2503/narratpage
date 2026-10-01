@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue,  toSelectItems,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { PageHeader } from '@/components/admin-page-header'
@@ -228,6 +228,7 @@ export default function AdminSettings() {
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`l-pos-${i}`}>位置</Label>
                 <Select
+                  items={toSelectItems(POSITIONS)}
                   value={link.position}
                   onValueChange={(v) => setLink(i, { position: v as SiteLink['position'] })}
                 >

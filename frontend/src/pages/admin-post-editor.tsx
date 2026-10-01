@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Eye, History, Save, Trash2 } from 'lucide-react'
 import { api, type Post, type PostInput, type PostStatus } from '@/lib/api'
@@ -28,6 +28,14 @@ import { RevisionPanel } from '@/components/revision-panel'
 import { TagInput } from '@/components/tag-input'
 import { MediaPicker } from '@/components/media-picker'
 import { statusLabel, statusVariant } from '@/pages/admin-posts'
+
+/**
+ * SelectValue 靠 Select.Root 上的 items 反查「值 → 标签」，
+ * 缺了它关闭状态下只会显示 published 这种原始值。
+ */
+const STATUS_ITEMS: Record<string, string> = Object.fromEntries(
+  (['draft', 'published', 'pending', 'private', 'trash'] as const).map((s) => [s, statusLabel(s)]),
+)
 
 export default function AdminPostEditor() {
   const { id } = useParams()
@@ -61,6 +69,11 @@ export default function AdminPostEditor() {
 
   const { data: categoriesData } = useAsync(() => api.listCategories(), [])
   const categories = categoriesData?.items ?? []
+  const categoryItems = useMemo(
+    // 'none' 是「未分类」的哨兵值，也要在映射里，否则关闭状态会露出 "none"
+    () => ({ none: '未分类', ...Object.fromEntries(categories.map((c) => [String(c.id), c.name])) }),
+    [categories],
+  )
 
   // 载入已有内容
   useEffect(() => {
@@ -235,6 +248,7 @@ export default function AdminPostEditor() {
               <div className="flex flex-col gap-1.5">
                 <Label>分类</Label>
                 <Select
+                  items={categoryItems}
                   value={categoryId || 'none'}
                   onValueChange={(v) => setCategoryId(!v || v === 'none' ? '' : v)}
                 >
@@ -321,6 +335,7 @@ export default function AdminPostEditor() {
               <div className="flex items-center gap-2">
                 <Label htmlFor="status">状态</Label>
                 <Select
+                  items={STATUS_ITEMS}
                   value={status}
                   onValueChange={(v) => setStatus(v as PostStatus)}
                 >

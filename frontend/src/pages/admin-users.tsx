@@ -15,7 +15,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue,  toSelectItems,
 } from '@/components/ui/select'
 import {
   Dialog,
@@ -340,7 +340,11 @@ function UserDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>角色</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
+            <Select
+              items={toSelectItems(ROLES)}
+              value={role}
+              onValueChange={(v) => setRole(v as UserRole)}
+            >
               <SelectTrigger className="w-full" aria-label="角色">
                 <SelectValue />
               </SelectTrigger>

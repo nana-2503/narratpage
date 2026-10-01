@@ -7,6 +7,18 @@ import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
 
+/**
+ * 由选项数组生成 Select 的 items 映射。
+ *
+ * Base UI 的 SelectValue 靠 Root 上的 items 反查「值 → 标签」；
+ * 缺了它就只能显示原始值（如 published / 2）而不是选项文案。
+ */
+export function toSelectItems<T extends { value: string | number; label: string }>(
+  options: readonly T[],
+): Record<string, React.ReactNode> {
+  return Object.fromEntries(options.map((o) => [String(o.value), o.label]))
+}
+
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
     <SelectPrimitive.Group

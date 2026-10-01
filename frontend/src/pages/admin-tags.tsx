@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Tags, Trash2 } from 'lucide-react'
 import { api, type Tag } from '@/lib/api'
@@ -28,6 +28,10 @@ export default function AdminTags() {
 
   const { data, error, loading } = useAsync(() => api.listTags(search), [search, reloadKey])
   const tags = data?.items ?? []
+  const tagItems = useMemo(
+    () => Object.fromEntries(tags.map((t) => [String(t.id), t.name])),
+    [tags],
+  )
   const refresh = () => setReloadKey((k) => k + 1)
 
   const add = async (e: React.FormEvent) => {
@@ -113,6 +117,7 @@ export default function AdminTags() {
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground">合并标签</span>
             <Select
+              items={tagItems}
               value={mergeSource}
               onValueChange={(v) => setMergeSource(v ?? '')}
             >
@@ -131,6 +136,7 @@ export default function AdminTags() {
           <span className="pb-2 text-xs text-muted-foreground">并入</span>
           <div className="flex flex-col gap-1.5">
             <Select
+              items={tagItems}
               value={mergeTarget}
               onValueChange={(v) => setMergeTarget(v ?? '')}
             >
