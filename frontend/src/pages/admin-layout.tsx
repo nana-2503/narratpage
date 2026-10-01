@@ -5,7 +5,7 @@ import { getToken, setToken } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { ThemeMenu } from '@/components/theme-menu'
 import {
   Sheet,
   SheetClose,
@@ -88,7 +88,7 @@ export default function AdminLayout() {
               <LogOut className="size-4" />
               退出
             </Button>
-            <ThemeToggle />
+            <ThemeMenu />
 
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger

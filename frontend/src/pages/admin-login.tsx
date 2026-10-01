@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { ThemeMenu } from '@/components/theme-menu'
 
 export default function AdminLogin() {
   const navigate = useNavigate()
@@ -42,7 +42,7 @@ export default function AdminLogin() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <div className="flex justify-end p-3">
-        <ThemeToggle />
+        <ThemeMenu align="end" />
       </div>
 
       <div className="flex flex-1 items-center justify-center px-4 pb-16">

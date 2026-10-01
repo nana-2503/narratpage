@@ -5,7 +5,7 @@ import { useSite } from '@/hooks/use-site'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { ThemeMenu } from '@/components/theme-menu'
 import {
   Sheet,
   SheetClose,
@@ -55,7 +55,7 @@ export function SiteHeader() {
           >
             <Rss className="size-4" />
           </a>
-          <ThemeToggle />
+          <ThemeMenu />
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger

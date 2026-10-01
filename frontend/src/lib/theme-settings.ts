@@ -1,8 +1,8 @@
 // 主题外观设置：圆角通过覆写 :root 的 --radius 实现，
 // index.css 中 radius-sm/xl 等派生变量与 rounded-* 工具类自动跟随。
 
-const RADIUS_KEY = 'narrat-theme-radius';
-export const DEFAULT_RADIUS = '0.25rem';
+const RADIUS_KEY = 'narrat-theme-radius'
+export const DEFAULT_RADIUS = '0.25rem'
 
 export const RADIUS_PRESETS = [
   { label: '直角', value: '0rem' },
@@ -11,36 +11,49 @@ export const RADIUS_PRESETS = [
   { label: '适中', value: '0.5rem' },
   { label: '大', value: '0.75rem' },
   { label: '圆形', value: '1rem' },
-] as const;
+] as const
 
-const MIN_REM = 0;
-const MAX_REM = 1;
-const STEP_REM = 0.0625; // 1/16 rem
+const MIN_REM = 0
+const MAX_REM = 1
+const STEP_REM = 0.0625 // 1/16 rem
 
 /** 把 "0.25rem" 解析为数值（rem），非法值回退默认 */
 export function parseRadius(value: string): number {
-  const n = Number.parseFloat(value);
-  return Number.isFinite(n) ? Math.min(MAX_REM, Math.max(MIN_REM, n)) : Number.parseFloat(DEFAULT_RADIUS);
+  const n = Number.parseFloat(value)
+  return Number.isFinite(n)
+    ? Math.min(MAX_REM, Math.max(MIN_REM, n))
+    : Number.parseFloat(DEFAULT_RADIUS)
 }
 
 export function applyRadius(value: string) {
-  document.documentElement.style.setProperty('--radius', value);
+  document.documentElement.style.setProperty('--radius', value)
 }
 
 export function loadRadius(): string {
   try {
-    return localStorage.getItem(RADIUS_KEY) || DEFAULT_RADIUS;
+    return localStorage.getItem(RADIUS_KEY) || DEFAULT_RADIUS
   } catch {
-    return DEFAULT_RADIUS; // 隐私模式等 localStorage 不可用场景
+    return DEFAULT_RADIUS // 隐私模式等 localStorage 不可用场景
   }
 }
 
 export function saveRadius(value: string) {
   try {
-    localStorage.setItem(RADIUS_KEY, value);
+    localStorage.setItem(RADIUS_KEY, value)
   } catch {
     /* 持久化失败不影响本次生效 */
   }
 }
 
-export const radiusRange = { min: MIN_REM, max: MAX_REM, step: STEP_REM };
+export const radiusRange = { min: MIN_REM, max: MAX_REM, step: STEP_REM }
+
+/**
+ * 初始化已保存的外观设置。
+ *
+ * 必须在应用挂载时调用一次：--radius 的默认值写在 CSS 里，
+ * 而用户选择存在 localStorage，刷新后 CSS 默认值会把它覆盖掉。
+ * 早期实现只在账号设置页的 effect 里应用，导致「保存了但刷新就丢」。
+ */
+export function initAppearance() {
+  applyRadius(loadRadius())
+}

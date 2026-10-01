@@ -1,35 +1,18 @@
-import { useEffect, useState } from 'react'
-import { KeyRound, LogOut, Monitor, Save, Sun, Moon, RotateCcw } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useState } from 'react'
+import { KeyRound, LogOut, Save } from 'lucide-react'
 import { api, type SessionInfo } from '@/lib/api'
 import { formatDateTime } from '@/lib/markdown'
 import { useAsync } from '@/hooks/use-async'
 import { useAuth } from '@/hooks/use-auth'
-import {
-  DEFAULT_RADIUS,
-  RADIUS_PRESETS,
-  applyRadius,
-  loadRadius,
-  parseRadius,
-  radiusRange,
-  saveRadius,
-} from '@/lib/theme-settings'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { PageHeader } from '@/components/admin-page-header'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-
-const themeModes = [
-  { value: 'system', label: '跟随系统', icon: Monitor },
-  { value: 'light', label: '浅色', icon: Sun },
-  { value: 'dark', label: '深色', icon: Moon },
-] as const
 
 const ROLES: Record<string, string> = {
   admin: '管理员',
@@ -41,7 +24,6 @@ const ROLES: Record<string, string> = {
 
 export default function AdminAccount() {
   const { user, logout } = useAuth()
-  const { theme, setTheme } = useTheme()
 
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -54,15 +36,6 @@ export default function AdminAccount() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
   const [pendingRevoke, setPendingRevoke] = useState(false)
-
-  const [radius, setRadius] = useState(loadRadius)
-  const radiusRem = parseRadius(radius)
-
-  // 圆角变化即时生效（写入 CSS 变量）并持久化
-  useEffect(() => {
-    applyRadius(radius)
-    saveRadius(radius)
-  }, [radius])
 
   const { data: sessionsData, reload: reloadSessions } = useAsync(
     () => api.sessions(),
@@ -274,78 +247,6 @@ export default function AdminAccount() {
           ))}
         </ul>
       </section>
-
-      <Separator className="my-8" />
-
-      <div className="grid items-start gap-8 lg:grid-cols-2">
-        <section className="flex flex-col gap-3">
-          <h2 className="text-xs font-medium text-muted-foreground">外观模式</h2>
-          <div className="flex flex-wrap gap-1">
-            {themeModes.map(({ value, label, icon: Icon }) => (
-              <Button
-                key={value}
-                size="sm"
-                variant={theme === value ? 'secondary' : 'ghost'}
-                aria-pressed={theme === value}
-                onClick={() => setTheme(value)}
-              >
-                <Icon className="size-4" /> {label}
-              </Button>
-            ))}
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-medium text-muted-foreground">边框圆角</h2>
-            <span className="text-xs text-muted-foreground tabular-nums">{radius}</span>
-          </div>
-
-          <div className="flex flex-wrap gap-1">
-            {RADIUS_PRESETS.map((p) => (
-              <Button
-                key={p.value}
-                size="sm"
-                variant={radius === p.value ? 'secondary' : 'ghost'}
-                aria-pressed={radius === p.value}
-                onClick={() => setRadius(p.value)}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
-
-          <Slider
-            value={[radiusRem]}
-            min={radiusRange.min}
-            max={radiusRange.max}
-            step={radiusRange.step}
-            onValueChange={(v) => setRadius(`${(Array.isArray(v) ? v[0] : v) ?? radiusRem}rem`)}
-            aria-label="圆角大小"
-          />
-
-          {/* 实时预览：直接反映当前圆角 */}
-          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border p-4">
-            <Button size="sm">按钮</Button>
-            <Badge variant="outline">标签</Badge>
-            <Input placeholder="输入框" className="w-32" readOnly tabIndex={-1} />
-            <div className="size-10 rounded-md border border-border bg-muted" />
-          </div>
-
-          <div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setRadius(DEFAULT_RADIUS)
-                toast.success('已恢复默认圆角')
-              }}
-            >
-              <RotateCcw className="size-4" /> 恢复默认
-            </Button>
-          </div>
-        </section>
-      </div>
 
       <ConfirmDialog
         open={pendingRevoke}
