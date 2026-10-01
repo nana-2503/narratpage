@@ -1,150 +1,300 @@
 import { useEffect, useState } from 'react'
-import { useTheme } from 'next-themes'
-import { Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Plus, Save, Trash2 } from 'lucide-react'
+import { api, type SiteLink, type SiteOptions } from '@/lib/api'
+import { invalidateSiteCache } from '@/hooks/use-site'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
-  DEFAULT_RADIUS,
-  RADIUS_PRESETS,
-  applyRadius,
-  loadRadius,
-  parseRadius,
-  radiusRange,
-  saveRadius,
-} from '@/lib/theme-settings'
-import { toast } from 'sonner'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { PageHeader } from '@/components/admin-page-header'
 
-const themeModes = [
-  { value: 'system', label: '跟随系统', icon: Monitor },
-  { value: 'light', label: '浅色', icon: Sun },
-  { value: 'dark', label: '深色', icon: Moon },
-] as const
-
-/** 读取安装向导写入的运行配置（惰性初始化，避免 effect 内 setState） */
-function loadRunConfig() {
-  const fallback = { dbType: 'sqlite', redisEnabled: false, siteUrl: '' }
-  try {
-    const saved = localStorage.getItem('blog_config')
-    if (!saved) return fallback
-    const config = JSON.parse(saved)
-    return {
-      dbType: config.DB_TYPE || 'sqlite',
-      redisEnabled: config.REDIS_ENABLED === 'true',
-      siteUrl: config.SITE_URL || '',
-    }
-  } catch {
-    return fallback
-  }
-}
+const POSITIONS: { value: SiteLink['position']; label: string }[] = [
+  { value: 'header', label: '顶部导航' },
+  { value: 'footer', label: '页脚' },
+  { value: 'social', label: '社交链接' },
+]
 
 export default function AdminSettings() {
-  const { theme, setTheme } = useTheme()
-  const [radius, setRadius] = useState(loadRadius)
-  const radiusRem = parseRadius(radius)
-  const [runConfig] = useState(loadRunConfig)
-  const { dbType, redisEnabled, siteUrl } = runConfig
+  const [form, setForm] = useState<SiteOptions | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  // 圆角变化即时生效（CSS 变量）并持久化
   useEffect(() => {
-    applyRadius(radius)
-    saveRadius(radius)
-  }, [radius])
+    api
+      .site()
+      .then(setForm)
+      .catch((err) => toast.error((err as Error).message))
+  }, [])
+
+  if (!form) return <p className="text-sm text-muted-foreground">加载中</p>
+
+  const set = <K extends keyof SiteOptions>(key: K, value: SiteOptions[K]) =>
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev))
+
+  const setLink = (index: number, patch: Partial<SiteLink>) =>
+    setForm((prev) => {
+      if (!prev) return prev
+      const links: SiteLink[] = prev.links.map((l) => ({ ...l }))
+      const cur = links[index]
+      if (cur) links[index] = { ...cur, ...patch }
+      return { ...prev, links }
+    })
+
+  const addLink = () =>
+    setForm((prev) => {
+      if (!prev) return prev
+      const links: SiteLink[] = [...prev.links]
+      links.push({ label: '', url: '', position: 'footer' })
+      return { ...prev, links }
+    })
+
+  const removeLink = (index: number) =>
+    setForm((prev) =>
+      prev ? { ...prev, links: prev.links.filter((_, i) => i !== index) } : prev,
+    )
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await api.updateSettings(form)
+      // 站点设置存在后端，前端缓存需失效才能读到新值
+      invalidateSiteCache()
+      toast.success('设置已保存')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-8">
-      <h1 className="text-sm font-semibold">设置</h1>
+    <div>
+      <PageHeader title="设置" />
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium text-muted-foreground">运行环境</h2>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border p-4 text-sm sm:grid-cols-3">
-          <div className="min-w-0">
-            <dt className="text-xs text-muted-foreground">数据库</dt>
-            <dd className="mt-0.5 truncate font-medium">{dbType}</dd>
+      <form onSubmit={save} className="mt-6 flex max-w-2xl flex-col gap-6">
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-medium text-muted-foreground">站点信息</h2>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="s-title">站点标题</Label>
+            <Input
+              id="s-title"
+              value={form.title}
+              onChange={(e) => set('title', e.target.value)}
+              maxLength={100}
+              required
+            />
           </div>
-          <div className="min-w-0">
-            <dt className="text-xs text-muted-foreground">Redis</dt>
-            <dd className="mt-0.5 truncate font-medium">{redisEnabled ? '已启用' : '未启用'}</dd>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="s-tagline">副标题</Label>
+            <Input
+              id="s-tagline"
+              value={form.tagline}
+              onChange={(e) => set('tagline', e.target.value)}
+              maxLength={200}
+            />
           </div>
-          <div className="col-span-2 min-w-0 sm:col-span-1">
-            <dt className="text-xs text-muted-foreground">站点地址</dt>
-            <dd className="mt-0.5 truncate font-medium" title={siteUrl || undefined}>
-              {siteUrl || '—'}
-            </dd>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="s-desc">站点描述（SEO）</Label>
+            <Textarea
+              id="s-desc"
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              rows={2}
+              maxLength={500}
+            />
           </div>
-        </dl>
-      </section>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="s-url">站点地址</Label>
+              <Input
+                id="s-url"
+                value={form.url}
+                onChange={(e) => set('url', e.target.value)}
+                placeholder="https://example.com"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="s-perpage">每页文章数</Label>
+              <Input
+                id="s-perpage"
+                type="number"
+                min={1}
+                max={100}
+                value={form.posts_per_page}
+                onChange={(e) => set('posts_per_page', Number(e.target.value) || 10)}
+              />
+            </div>
+          </div>
+        </section>
 
-      <div className="grid items-start gap-8 lg:grid-cols-2">
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium text-muted-foreground">外观模式</h2>
-        <div className="flex flex-wrap gap-1">
-          {themeModes.map(({ value, label, icon: Icon }) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={theme === value ? 'secondary' : 'ghost'}
-              aria-pressed={theme === value}
-              onClick={() => setTheme(value)}
-            >
-              <Icon className="size-4" /> {label}
+        <Separator />
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-medium text-muted-foreground">评论</h2>
+          <ToggleRow
+            id="s-comments"
+            label="开启评论"
+            checked={form.comments_enabled}
+            onChange={(v) => set('comments_enabled', v)}
+          />
+          <ToggleRow
+            id="s-moderation"
+            label="评论需审核"
+            hint="开启后评论提交后先进入待审核"
+            checked={form.comment_moderation}
+            onChange={(v) => set('comment_moderation', v)}
+            disabled={!form.comments_enabled}
+          />
+        </section>
+
+        <Separator />
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-medium text-muted-foreground">文章显示</h2>
+          <ToggleRow
+            id="s-show-date"
+            label="显示日期"
+            checked={form.show_date}
+            onChange={(v) => set('show_date', v)}
+          />
+          <ToggleRow
+            id="s-show-reading"
+            label="显示阅读时长"
+            checked={form.show_reading_time}
+            onChange={(v) => set('show_reading_time', v)}
+          />
+          <ToggleRow
+            id="s-show-author"
+            label="显示作者"
+            checked={form.show_author}
+            onChange={(v) => set('show_author', v)}
+          />
+          <ToggleRow
+            id="s-show-tags"
+            label="显示标签"
+            checked={form.show_tags}
+            onChange={(v) => set('show_tags', v)}
+          />
+        </section>
+
+        <Separator />
+
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-medium text-muted-foreground">站点链接</h2>
+            <Button type="button" size="sm" variant="outline" onClick={addLink}>
+              <Plus className="size-4" />
+              添加
             </Button>
-          ))}
-        </div>
-      </section>
+          </div>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-medium text-muted-foreground">边框圆角</h2>
-          <span className="text-xs text-muted-foreground tabular-nums">{radius}</span>
-        </div>
+          {form.links.length === 0 && (
+            <p className="text-sm text-muted-foreground">暂无链接</p>
+          )}
 
-        <div className="flex flex-wrap gap-1">
-          {RADIUS_PRESETS.map((p) => (
-            <Button
-              key={p.value}
-              size="sm"
-              variant={radius === p.value ? 'secondary' : 'ghost'}
-              aria-pressed={radius === p.value}
-              onClick={() => setRadius(p.value)}
+          {form.links.map((link, i) => (
+            <div
+              key={`${link.label}-${i}`}
+              className="grid items-end gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_1.4fr_8rem_auto]"
             >
-              {p.label}
-            </Button>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`l-label-${i}`}>名称</Label>
+                <Input
+                  id={`l-label-${i}`}
+                  value={link.label}
+                  onChange={(e) => setLink(i, { label: e.target.value })}
+                  maxLength={50}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`l-url-${i}`}>地址</Label>
+                <Input
+                  id={`l-url-${i}`}
+                  value={link.url}
+                  onChange={(e) => setLink(i, { url: e.target.value })}
+                  placeholder="https:// 或 /path"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`l-pos-${i}`}>位置</Label>
+                <Select
+                  value={link.position}
+                  onValueChange={(v) => setLink(i, { position: v as SiteLink['position'] })}
+                >
+                  <SelectTrigger id={`l-pos-${i}`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POSITIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-8 text-destructive"
+                onClick={() => removeLink(i)}
+                aria-label={`删除链接 ${link.label || i + 1}`}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
           ))}
-        </div>
-
-        <Slider
-          value={[radiusRem]}
-          min={radiusRange.min}
-          max={radiusRange.max}
-          step={radiusRange.step}
-          onValueChange={(v) => setRadius(`${(Array.isArray(v) ? v[0] : v) ?? radiusRem}rem`)}
-          aria-label="圆角大小"
-        />
-
-        {/* 实时预览：直接反映当前圆角 */}
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border p-4">
-          <Button size="sm">按钮</Button>
-          <Badge variant="outline">标签</Badge>
-          <Input placeholder="输入框" className="w-32" readOnly tabIndex={-1} />
-          <div className="size-10 rounded-md border border-border bg-muted" />
-        </div>
+        </section>
 
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setRadius(DEFAULT_RADIUS)
-              toast.success('已恢复默认圆角')
-            }}
-          >
-            <RotateCcw className="size-4" /> 恢复默认
+          <Button type="submit" size="sm" disabled={saving}>
+            <Save className="size-4" />
+            {saving ? '保存中' : '保存设置'}
           </Button>
         </div>
-      </section>
+      </form>
+    </div>
+  )
+}
+
+function ToggleRow({
+  id,
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled,
+}: {
+  id: string
+  label: string
+  hint?: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <Label htmlFor={id}>{label}</Label>
+        {hint && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
       </div>
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+      />
     </div>
   )
 }

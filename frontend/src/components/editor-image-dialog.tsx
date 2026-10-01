@@ -24,7 +24,7 @@ interface EditorImageDialogProps {
 
 type Mode = 'upload' | 'url'
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
+const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml'
 
 export function EditorImageDialog({ open, onOpenChange, onInsert }: EditorImageDialogProps) {
   const [mode, setMode] = useState<Mode>('upload')

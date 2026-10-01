@@ -1,26 +1,30 @@
-# Redis 扩展：与 docker-compose.yml 组合使用
-# 启动: docker compose -f docker-compose.yml -f docker-compose.redis.yml up --build -d
+# Redis 扩展：用 compose profile 启用
+# 启动: docker compose --profile redis up --build -d
+#
+# Redis 只用于登录限流的多实例共享；单实例部署可不启用。
+# 所有 compose 文件需同时加载，profile 才会生效：
+#   docker compose -f docker-compose.yml -f docker-compose.redis.yml --profile redis up -d
 services:
-  backend:
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      REDIS_ENABLED: true
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-
   redis:
     image: redis:7-alpine
+    profiles: [redis]
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
-      start_period: 5s
+      timeout: 3s
       retries: 5
+
+  backend:
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://redis:6379
 
 volumes:
   redis-data:

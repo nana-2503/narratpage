@@ -7,89 +7,17 @@ import (
 	"narratpage/internal/auth"
 	"narratpage/internal/config"
 	"narratpage/internal/db"
+	"narratpage/internal/dialect"
+	"narratpage/internal/repo"
 )
 
-type seedCategory struct {
-	name string
-	slug string
-}
-
-type seedPost struct {
-	title        string
-	slug         string
-	summary      string
-	content      string
-	categorySlug string
-}
-
-var seedCategories = []seedCategory{
-	{"技术", "tech"},
-	{"生活", "life"},
-	{"随笔", "notes"},
-}
-
-var seedPosts = []seedPost{
-	{
-		title:   "为什么选择 SQLite 作为博客数据库",
-		slug:    "why-sqlite-for-blog",
-		summary: "单文件、零运维、读多写少的场景下，SQLite 往往是博客系统最务实的后端存储选择。",
-		content: `## 单文件的魅力
-
- SQLite 把整个数据库放进一个文件，备份就是拷贝文件，迁移就是挂载卷。对个人博客这种读多写少的场景，它没有连接池调优，没有慢查询监控，运维成本趋近于零。
-
- ## 写放大不是问题
-
- 博客的写入集中在作者本人：一天几篇文章、几十条评论。WAL 模式下读写不互斥，这个量级绰绰有余。
-
- ## 什么时候该换
-
- 当出现多实例部署、写入并发超过百 QPS、或需要全文检索排名时，再迁移到 PostgreSQL 也不迟——届时数据导出只是一条 ` + "`.dump`" + ` 的事。`,
-		categorySlug: "tech",
-	},
-	{
-		title:   "Markdown 写作流水线",
-		slug:    "markdown-writing-pipeline",
-		summary: "从草稿到发布，一套基于纯文本的写作流程：本地编辑、版本管理、一键发布。",
-		content: `## 纯文本优先
-
- 文章用 Markdown 书写，Git 做版本管理，发布只是推送到仓库。不依赖任何专有格式，十年后依然打得开。
-
- ## 结构即大纲
-
- 先列标题再填内容。H2 是章节，H3 是论点，写作前大纲先成立，文章就不会散。`,
-		categorySlug: "notes",
-	},
-	{
-		title:   "重新开始写博客",
-		slug:    "restart-blogging",
-		summary: "清理掉收藏夹里的教程，关掉永远在配置的编辑器，先把第一篇发出去。",
-		content: `## 完成比完美重要
-
- 搭博客的真正风险不是选错技术栈，而是把全部时间花在配置环境上。先让最小版本跑起来，剩下的在路上迭代。
-
- ## 写给未来的自己
-
- 保持记录的习惯。三年后回看，这些文字就是时间存在的证据。`,
-		categorySlug: "life",
-	},
-}
-
-type seedComment struct {
-	postSlug string
-	author   string
-	content  string
-	status   string
-}
-
-var seedComments = []seedComment{
-	{"why-sqlite-for-blog", "读者甲", "写得很好，已经准备把博客迁到 SQLite 了。", "approved"},
-	{"markdown-writing-pipeline", "路过乙", "大纲先行这点很认同。", "approved"},
-	{"restart-blogging", "游客丙", "占位待审核的一条评论。", "pending"},
-}
-
-// Run 幂等种子：仅在对应表为空时写入
+// Run 幂等种子：仅在对应表为空时写入示例内容。
+//
+// 注意：所有语句都必须经 db 包执行以适配占位符。早期实现直接用
+// `?` 拼接，在 PostgreSQL 下会因占位符不匹配而启动失败。
 func Run(database *sql.DB, cfg config.Config) error {
 	now := db.NowISO()
+	dbType := cfg.DBType
 
 	var userCount int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&userCount); err != nil {
@@ -100,65 +28,152 @@ func Run(database *sql.DB, cfg config.Config) error {
 		if err != nil {
 			return err
 		}
-		_, err = database.Exec(
-			`INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)`,
-			cfg.AdminUsername, hash, now,
-		)
+		_, err = db.Insert(database, dbType, "users",
+			[]string{"username", "display_name", "password_hash", "role", "active", "created_at"},
+			[]any{cfg.AdminUsername, cfg.AdminUsername, hash, "admin",
+				dialect.Dialect(dbType).QuoteBool(true), now})
 		if err != nil {
 			return err
 		}
 		log.Printf("[seed] 默认管理员已创建: %s", cfg.AdminUsername)
 		if cfg.AdminPassword == "admin123" {
-			log.Printf("[seed] 警告: 正在使用默认密码 admin123，请尽快通过 ADMIN_PASSWORD 环境变量修改")
+			log.Print("[seed] 警告: 正在使用默认密码 admin123，请尽快修改")
 		}
 	}
 
+	// 分类
 	var catCount int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM categories`).Scan(&catCount); err != nil {
 		return err
 	}
 	if catCount == 0 {
-		for _, c := range seedCategories {
-			if _, err := database.Exec(
-				`INSERT INTO categories (name, slug, created_at) VALUES (?, ?, ?)`,
-				c.name, c.slug, now,
-			); err != nil {
+		for i, c := range seedCategories {
+			if _, err := db.Insert(database, dbType, "categories",
+				[]string{"name", "slug", "description", "is_page", "position", "created_at"},
+				[]any{c.name, c.slug, c.description, 0, i, now}); err != nil {
+				return err
+			}
+		}
+		log.Print("[seed] 示例分类已写入")
+	}
+
+	// 标签
+	var tagCount int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM tags`).Scan(&tagCount); err != nil {
+		return err
+	}
+	if tagCount == 0 {
+		for _, t := range seedTags {
+			// slug 统一走 Slugify，保证与后续 ResolveTagIDs 的结果一致
+			slug := t.slug
+			if slug == "" {
+				slug = repo.Slugify(t.name, "tag")
+			}
+			if _, err := db.Insert(database, dbType, "tags",
+				[]string{"name", "slug", "description", "created_at"},
+				[]any{t.name, slug, t.description, now}); err != nil {
 				return err
 			}
 		}
 	}
 
+	// 文章
 	var postCount int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM posts`).Scan(&postCount); err != nil {
 		return err
 	}
 	if postCount == 0 {
+		tax := repo.NewTaxonomy(database, dbType)
+		adminID := firstAdminID(database)
+		authorID := any(nil)
+		if adminID > 0 {
+			authorID = adminID
+		}
+
 		for _, p := range seedPosts {
-			if _, err := database.Exec(
-				`INSERT INTO posts (title, slug, summary, content, category_id, status, published_at, created_at, updated_at)
-				 VALUES (?, ?, ?, ?, (SELECT id FROM categories WHERE slug = ?), 'published', ?, ?, ?)`,
-				p.title, p.slug, p.summary, p.content, p.categorySlug, now, now, now,
-			); err != nil {
+			catID, err := categoryID(database, dbType, p.categorySlug)
+			if err != nil {
+				return err
+			}
+			id, err := db.Insert(database, dbType, "posts",
+				[]string{"title", "slug", "summary", "content", "status", "type",
+					"category_id", "author_id", "created_at", "updated_at", "published_at"},
+				[]any{p.title, p.slug, p.summary, p.content, "published", "post",
+					catID, authorID, now, now, now})
+			if err != nil {
+				return err
+			}
+			// 关联标签
+			for _, tagName := range p.tagNames {
+				ids, err := tax.ResolveTagIDs([]string{tagName})
+				if err != nil {
+					continue
+				}
+				_ = tax.AddPostTag(id, ids[0])
+			}
+		}
+		log.Print("[seed] 示例文章已写入")
+	}
+
+	// 页面
+	var pageCount int
+	if err := db.QueryRow(database, dbType,
+		`SELECT COUNT(*) FROM posts WHERE type = ?`, "page").Scan(&pageCount); err != nil {
+		return err
+	}
+	if pageCount == 0 {
+		for i, p := range seedPages {
+			if _, err := db.Insert(database, dbType, "posts",
+				[]string{"title", "slug", "content", "status", "type",
+					"menu_order", "created_at", "updated_at", "published_at"},
+				[]any{p.title, p.slug, p.content, "published", "page",
+					i, now, now, now}); err != nil {
 				return err
 			}
 		}
-		log.Printf("[seed] 示例文章已写入")
+		log.Print("[seed] 示例页面已写入")
 	}
 
+	// 评论
 	var commentCount int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM comments`).Scan(&commentCount); err != nil {
 		return err
 	}
 	if commentCount == 0 {
 		for _, c := range seedComments {
-			if _, err := database.Exec(
-				`INSERT INTO comments (post_id, author, content, status, created_at)
-				 VALUES ((SELECT id FROM posts WHERE slug = ?), ?, ?, ?, ?)`,
-				c.postSlug, c.author, c.content, c.status, now,
-			); err != nil {
+			postID, err := postIDBySlug(database, dbType, c.postSlug)
+			if err != nil || postID == 0 {
+				continue
+			}
+			if _, err := db.Insert(database, dbType, "comments",
+				[]string{"post_id", "author", "content", "status", "created_at"},
+				[]any{postID, c.author, c.content, c.status, now}); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func firstAdminID(database *sql.DB) int64 {
+	var id int64
+	_ = database.QueryRow("SELECT id FROM users ORDER BY id ASC LIMIT 1").Scan(&id)
+	return id
+}
+
+func categoryID(database *sql.DB, dbType, slug string) (any, error) {
+	var id int64
+	err := db.QueryRow(database, dbType,
+		"SELECT id FROM categories WHERE slug = ?", slug).Scan(&id)
+	if err != nil {
+		return nil, nil // 分类不存在时留空
+	}
+	return id, nil
+}
+
+func postIDBySlug(database *sql.DB, dbType, slug string) (int64, error) {
+	var id int64
+	err := db.QueryRow(database, dbType,
+		"SELECT id FROM posts WHERE slug = ?", slug).Scan(&id)
+	return id, err
 }

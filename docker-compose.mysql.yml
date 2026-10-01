@@ -1,5 +1,7 @@
-# MySQL 扩展：与 docker-compose.yml 组合使用
-# 启动: docker compose -f docker-compose.yml -f docker-compose.mysql.yml up --build -d
+# MySQL 扩展：用 compose profile 启用
+# 启动: docker compose --profile mysql up --build -d
+#
+# 数据库类型在进程启动时读取，切换后需重建容器。
 services:
   backend:
     depends_on:
@@ -11,6 +13,7 @@ services:
 
   db:
     image: mysql:8.0
+    profiles: [mysql]
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}

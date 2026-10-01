@@ -1,3 +1,5 @@
+# 默认双容器：前端 nginx(8080) + 后端 API(3000)
+# 启动: docker compose up --build -d
 services:
   backend:
     build: ./backend
@@ -6,9 +8,11 @@ services:
       PORT: 3000
       DATA_DIR: /data
       JWT_SECRET: ${JWT_SECRET:-please-change-this-jwt-secret}
-      SITE_URL: ${SITE_URL:-http://localhost:8080}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      SITE_URL: ${SITE_URL:-http://localhost:8080}
+      # 位于 nginx 之后，需信任 X-Forwarded-For 才能按真实客户端 IP 限流
+      TRUST_PROXY: ${TRUST_PROXY:-true}
       DB_TYPE: ${DB_TYPE:-sqlite}
       DB_DSN: ${DB_DSN:-}
       REDIS_ENABLED: ${REDIS_ENABLED:-false}

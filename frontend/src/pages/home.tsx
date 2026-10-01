@@ -1,31 +1,58 @@
-import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/markdown'
 import { useAsync } from '@/hooks/use-async'
+import { useSite } from '@/hooks/use-site'
 import { cn } from '@/lib/utils'
 import { SiteHeader } from '@/components/site-header'
+import { SiteFooter } from '@/components/site-footer'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
-const PAGE_SIZE = 10
-
 export default function Home() {
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { site } = useSite()
+
+  // 路径段 /category/:slug、/tag/:slug 归一为查询条件，
+  // 这样分类/标签页与首页共用同一份渲染逻辑，筛选状态可分享。
+  const pathSegment = decodeURIComponent(location.pathname.split('/')[2] || '')
+  const pathKind = location.pathname.split('/')[1]
+  const fromPath =
+    pathKind === 'category' ? 'category' : pathKind === 'tag' ? 'tag' : ''
+
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
-  const category = searchParams.get('category') || ''
+  const category = searchParams.get('category') || (fromPath === 'category' ? pathSegment : '')
+  const tag = searchParams.get('tag') || (fromPath === 'tag' ? pathSegment : '')
   const q = searchParams.get('q') || ''
+  const author = searchParams.get('author') || ''
+  const year = searchParams.get('year') || ''
+  const month = searchParams.get('month') || ''
+  const pageSize = site.posts_per_page || 10
 
   const [keyword, setKeyword] = useState(q)
+  // URL 中的 q 被外部改变（如点击标签）时，同步回输入框
+  useEffect(() => setKeyword(q), [q])
 
   const { data: categoriesData } = useAsync(() => api.listCategories(), [])
   const categories = categoriesData?.items ?? []
 
   const { data, error, loading } = useAsync(
-    () => api.listPosts({ page, pageSize: PAGE_SIZE, category, q }),
-    [page, category, q],
+    () =>
+      api.listPosts({
+        page,
+        pageSize,
+        category: category || undefined,
+        tag: tag || undefined,
+        q: q || undefined,
+        author: author ? Number(author) : undefined,
+        year: year ? Number(year) : undefined,
+        month: month ? Number(month) : undefined,
+      }),
+    [page, category, tag, q, author, year, month, pageSize],
   )
 
   const updateParams = (patch: Record<string, string | null>) => {
@@ -38,12 +65,12 @@ export default function Home() {
     setSearchParams(next)
   }
 
-  const filtered = Boolean(q || category)
+  const filtered = Boolean(q || category || tag || author || year)
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-4 pb-16">
+      <main className="mx-auto max-w-3xl flex-1 px-4 pb-16">
         {/* 粘性筛选栏：搜索 + 分类，滚动时始终可达 */}
         <div className="sticky top-12 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
           <form
@@ -54,11 +81,11 @@ export default function Home() {
             }}
           >
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="搜索标题"
+                placeholder="搜索标题与正文"
                 className={cn('pl-8', keyword && 'pr-8')}
                 aria-label="搜索文章"
               />
@@ -66,7 +93,7 @@ export default function Home() {
                 <button
                   type="button"
                   aria-label="清除搜索"
-                  className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => {
                     setKeyword('')
                     updateParams({ q: null })
@@ -84,9 +111,9 @@ export default function Home() {
           <div className="mt-2 flex flex-wrap gap-1">
             <Button
               size="sm"
-              variant={category ? 'ghost' : 'secondary'}
-              aria-pressed={!category}
-              onClick={() => updateParams({ category: null })}
+              variant={!category && !tag ? 'secondary' : 'ghost'}
+              aria-pressed={!category && !tag}
+              onClick={() => setSearchParams(new URLSearchParams())}
             >
               全部
             </Button>
@@ -96,13 +123,37 @@ export default function Home() {
                 size="sm"
                 variant={category === c.slug ? 'secondary' : 'ghost'}
                 aria-pressed={category === c.slug}
-                onClick={() => updateParams({ category: c.slug })}
+                onClick={() => updateParams({ category: c.slug, tag: null })}
               >
                 {c.name}
+                {typeof c.post_count === 'number' && c.post_count > 0 && (
+                  <span className="ml-1 text-xs text-muted-foreground tabular-nums">
+                    {c.post_count}
+                  </span>
+                )}
               </Button>
             ))}
           </div>
         </div>
+
+        {/* 当前生效的筛选条件，可单独清除 */}
+        {(category || tag || q || year || author) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+            {tag && (
+              <FilterChip label={`标签：${tag}`} onClear={() => updateParams({ tag: null })} />
+            )}
+            {year && (
+              <FilterChip
+                label={`时间：${year}${month ? `-${month}` : ''}`}
+                onClear={() => updateParams({ year: null, month: null })}
+              />
+            )}
+            {author && (
+              <FilterChip label="作者筛选" onClear={() => updateParams({ author: null })} />
+            )}
+            {q && <FilterChip label={`搜索：${q}`} onClear={() => updateParams({ q: null })} />}
+          </div>
+        )}
 
         {error && <p className="py-8 text-center text-sm text-destructive">{error.message}</p>}
 
@@ -132,8 +183,11 @@ export default function Home() {
                   title={post.title}
                 >
                   <span className="w-6 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                    {(page - 1) * PAGE_SIZE + i + 1}
+                    {(page - 1) * pageSize + i + 1}
                   </span>
+                  {post.sticky && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground">置顶</span>
+                  )}
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{post.title}</span>
                   {post.category_name && (
                     <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
@@ -172,7 +226,36 @@ export default function Home() {
             </Button>
           </div>
         )}
+
+        <div className="mt-10 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
+          <Link to="/archive" className="hover:text-foreground">
+            归档
+          </Link>
+          <Link to="/tags" className="hover:text-foreground">
+            标签
+          </Link>
+          <a href="/api/feed.xml" className="hover:text-foreground">
+            RSS
+          </a>
+        </div>
       </main>
+      <SiteFooter />
     </div>
+  )
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5">
+      <span className="truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={`清除筛选 ${label}`}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        <X className="size-3" />
+      </button>
+    </span>
   )
 }

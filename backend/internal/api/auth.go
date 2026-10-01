@@ -1,28 +1,23 @@
 package api
 
 import (
-	"database/sql"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 
 	"narratpage/internal/auth"
-	"narratpage/internal/config"
-	"narratpage/internal/db"
 	"narratpage/internal/httpx"
+	"narratpage/internal/ratelimit"
 )
 
-// authHandlers 认证相关接口
-type authHandlers struct {
-	db     *sql.DB
-	dbType string
-	secret string
-	expiry time.Duration
-	mw     *auth.Middleware
+// authAPI 认证相关 handler。
+type authAPI struct {
+	deps    Deps
+	limiter *ratelimit.Limiter
 }
 
-func newAuthHandlers(db *sql.DB, cfg config.Config, mw *auth.Middleware) *authHandlers {
-	return &authHandlers{db: db, dbType: cfg.DBType, secret: cfg.JWTSecret, expiry: cfg.JWTExpiry, mw: mw}
+func authHandlers(deps Deps, _ any, limiter *ratelimit.Limiter) *authAPI {
+	return &authAPI{deps: deps, limiter: limiter}
 }
 
 type loginRequest struct {
@@ -31,49 +26,65 @@ type loginRequest struct {
 }
 
 // POST /api/auth/login
-func (h *authHandlers) login(w http.ResponseWriter, r *http.Request) {
+func (a *authAPI) login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
 	if req.Username == "" || req.Password == "" {
-		httpx.WriteError(w, http.StatusBadRequest, "用户名和密码必填")
+		badRequest(w, "用户名和密码必填")
 		return
 	}
-	var id int
-	var hash, username string
-	err := db.QueryRowPlaceholder(h.db, h.dbType,
-		`SELECT id, username, password_hash FROM users WHERE username = ?`, req.Username,
-	).Scan(&id, &username, &hash)
-	if err == sql.ErrNoRows || !auth.CheckPassword(req.Password, hash) {
+
+	user, hash, err := a.deps.Users.ByUsername(req.Username)
+	// 用户不存在与密码错误返回同一提示，避免用户名枚举
+	if err != nil || !auth.CheckPassword(req.Password, hash) {
 		httpx.WriteError(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
+	if !user.Active {
+		httpx.WriteError(w, http.StatusForbidden, "账号已被停用")
+		return
+	}
+
+	token, jti, err := auth.Sign(a.jwtSecret(), a.jwtExpiry(), user.ID, user.Username, user.Role)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
 		return
 	}
-	token, err := auth.Sign(h.secret, h.expiry, id, username)
-	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
-		return
+
+	// 登记会话，供「登出所有设备」与设备列表使用
+	a.deps.Users.RecordSession(jti, user.ID, ratelimit.ClientIP(r, a.trustProxy()), r.UserAgent())
+	a.deps.Users.TouchLogin(user.ID)
+
+	// 登录成功后清空该 IP 的失败计数，避免正常用户被累积计数影响
+	if a.limiter != nil {
+		a.limiter.Reset(r)
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"token": token, "username": username})
+
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"token": token,
+		"user": map[string]any{
+			"id": user.ID, "username": user.Username,
+			"display_name": user.DisplayName, "role": user.Role,
+		},
+	})
 }
 
 // GET /api/auth/me
-func (h *authHandlers) me(w http.ResponseWriter, r *http.Request) {
+func (a *authAPI) me(w http.ResponseWriter, r *http.Request) {
 	claims := auth.UserFromContext(r.Context())
 	if claims == nil {
 		httpx.WriteError(w, http.StatusUnauthorized, "未认证")
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]string{"username": claims.Username})
-}
-
-type passwordRequest struct {
-	OldPassword string `json:"oldPassword"`
-	NewPassword string `json:"newPassword"`
+	user, err := a.deps.Users.ByID(claims.Sub)
+	if err != nil {
+		httpx.WriteError(w, http.StatusUnauthorized, "用户不存在")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, user)
 }
 
 const (
@@ -81,8 +92,13 @@ const (
 	maxPassword = 72 // bcrypt 仅使用前 72 字节
 )
 
+type passwordRequest struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
 // POST /api/auth/password
-func (h *authHandlers) changePassword(w http.ResponseWriter, r *http.Request) {
+func (a *authAPI) changePassword(w http.ResponseWriter, r *http.Request) {
 	claims := auth.UserFromContext(r.Context())
 	if claims == nil {
 		httpx.WriteError(w, http.StatusUnauthorized, "未认证")
@@ -93,44 +109,79 @@ func (h *authHandlers) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.OldPassword == "" || req.NewPassword == "" {
-		httpx.WriteError(w, http.StatusBadRequest, "原密码和新密码必填")
+		badRequest(w, "原密码和新密码必填")
 		return
 	}
 	if len(req.NewPassword) < minPassword || len(req.NewPassword) > maxPassword {
-		httpx.WriteError(w, http.StatusBadRequest, "新密码长度需在 "+itoa(minPassword)+"-"+itoa(maxPassword)+" 位之间")
+		badRequest(w, "新密码长度需在 8-72 位之间")
 		return
 	}
-	var hash string
-	err := db.QueryRowPlaceholder(h.db, h.dbType,
-		`SELECT password_hash FROM users WHERE id = ?`, claims.Sub,
-	).Scan(&hash)
-	if err == sql.ErrNoRows {
-		httpx.WriteError(w, http.StatusNotFound, "用户不存在")
+	if req.OldPassword == req.NewPassword {
+		badRequest(w, "新密码不能与原密码相同")
 		return
 	}
+
+	user, hash, err := a.deps.Users.ByUsername(claims.Username)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
+		httpx.WriteError(w, http.StatusNotFound, "用户不存在")
 		return
 	}
 	if !auth.CheckPassword(req.OldPassword, hash) {
 		httpx.WriteError(w, http.StatusUnauthorized, "原密码错误")
 		return
 	}
-	newHash, err := auth.HashPassword(req.NewPassword)
-	if err != nil {
+	if err := a.deps.Users.UpdatePassword(user.ID, req.NewPassword); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
 		return
 	}
-	if _, err := db.ExecPlaceholder(h.db, h.dbType,
-		`UPDATE users SET password_hash = ? WHERE id = ?`, newHash, claims.Sub,
-	); err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
-		return
+	// 改密后使其它会话失效
+	_, _ = a.deps.Users.RevokeOtherSessions(user.ID, claims.ID)
+
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// POST /api/auth/logout
+func (a *authAPI) logout(w http.ResponseWriter, r *http.Request) {
+	claims := auth.UserFromContext(r.Context())
+	if claims != nil && claims.ID != "" {
+		_ = a.deps.Users.RevokeSession(claims.ID)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// itoa 小工具（避免到处 import strconv）
-func itoa(n int) string {
-	return strconv.Itoa(n)
+// GET /api/auth/sessions
+func (a *authAPI) sessions(w http.ResponseWriter, r *http.Request) {
+	claims := auth.UserFromContext(r.Context())
+	items, err := a.deps.Users.ListSessions(claims.Sub)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
+		return
+	}
+	// 标记当前会话
+	out := make([]map[string]any, 0, len(items))
+	for _, s := range items {
+		out = append(out, map[string]any{
+			"id": s.ID, "ip": s.IP, "user_agent": s.UserAgent,
+			"created_at": s.CreatedAt, "last_seen_at": s.LastSeenAt,
+			"current": s.TokenID == claims.ID,
+		})
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
 }
+
+// DELETE /api/auth/sessions/others
+func (a *authAPI) revokeOthers(w http.ResponseWriter, r *http.Request) {
+	claims := auth.UserFromContext(r.Context())
+	n, err := a.deps.Users.RevokeOtherSessions(claims.Sub, claims.ID)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "服务器内部错误")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "revoked": n})
+}
+
+// jwtSecret/jwtExpiry 从 deps 读取运行配置。
+// 认证需要这两项，故把它们放进 Deps 而非逐个 handler 传参。
+func (a *authAPI) jwtSecret() string        { return a.deps.JWTSecret }
+func (a *authAPI) jwtExpiry() time.Duration { return a.deps.JWTExpiry }
+func (a *authAPI) trustProxy() bool         { return a.deps.TrustProxy }

@@ -65,12 +65,22 @@ interface MarkdownEditorProps {
   /** 内容变化时回调最新 Markdown */
   onChange: (markdown: string) => void
   placeholder?: string
+  /** 请求打开图片对话框（由外层决定插入正文还是设为封面） */
+  onRequestImage?: () => void
 }
 
 /** 富文本编辑器：Tiptap WYSIWYG，内部与数据库均保持 Markdown 格式 */
-export function MarkdownEditor({ initialValue, onChange, placeholder = '开始写作…' }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  initialValue,
+  onChange,
+  placeholder = '开始写作…',
+  onRequestImage,
+}: MarkdownEditorProps) {
   const [imageOpen, setImageOpen] = useState(false)
-  const items = buildToolbarItems(() => setImageOpen(true))
+  const items = buildToolbarItems(() => {
+    if (onRequestImage) onRequestImage()
+    else setImageOpen(true)
+  })
 
   const editor = useEditor({
     extensions: [

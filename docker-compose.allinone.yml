@@ -1,6 +1,10 @@
 # 单容器一体化部署：一个镜像同时提供前端与 API
 # 启动: docker compose -f docker-compose.allinone.yml up --build -d
 # 站点: http://localhost:8080
+#
+# 说明：此时后端直接对外，不再经过反向代理，
+# 因此 TRUST_PROXY 必须为 false —— 否则客户端可伪造
+# X-Forwarded-For 绕过登录限流。
 services:
   blog:
     build:
@@ -16,12 +20,19 @@ services:
       SITE_URL: ${SITE_URL:-http://localhost:8080}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       DB_TYPE: ${DB_TYPE:-sqlite}
       DB_DSN: ${DB_DSN:-}
       REDIS_ENABLED: ${REDIS_ENABLED:-false}
       REDIS_URL: ${REDIS_URL:-}
     volumes:
       - blog-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
 volumes:
   blog-data:

@@ -1,52 +1,75 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { api, setToken } from '@/lib/api'
+import { LogIn } from 'lucide-react'
+import { getToken } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default function AdminLogin() {
   const navigate = useNavigate()
-  const location = useLocation() as { state?: { from?: string } }
+  const location = useLocation()
+  const { login, user, ready } = useAuth()
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  // 已登录时直接进入后台
+  if (ready && user && getToken()) {
+    const from = (location.state as { from?: string })?.from
+    navigate(from && from !== '/admin/login' ? from : '/admin/dashboard', { replace: true })
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setError('')
+    setSubmitting(true)
     try {
-      const { token } = await api.login(username.trim(), password)
-      setToken(token)
-      toast.success('登录成功')
-      navigate(location.state?.from || '/admin/posts', { replace: true })
+      await login(username.trim(), password)
+      const from = (location.state as { from?: string })?.from
+      navigate(from && from !== '/admin/login' ? from : '/admin/dashboard', { replace: true })
     } catch (err) {
-      toast.error((err as Error).message)
+      setError((err as Error).message)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
-      <div className="w-full max-w-72">
-        <h1 className="text-center text-lg font-semibold tracking-tight">博客后台</h1>
-        <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <div className="flex justify-end p-3">
+        <ThemeToggle />
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-4 pb-16">
+        <form
+          onSubmit={submit}
+          className="flex w-full max-w-xs flex-col gap-4"
+        >
+          <div>
+            <h1 className="text-sm font-semibold">登录后台</h1>
+          </div>
+
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="username">用户名</Label>
+            <Label htmlFor="l-user">用户名</Label>
             <Input
-              id="username"
+              id="l-user"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              autoFocus
               required
             />
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">密码</Label>
+            <Label htmlFor="l-pass">密码</Label>
             <Input
-              id="password"
+              id="l-pass"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -54,15 +77,21 @@ export default function AdminLogin() {
               required
             />
           </div>
-          <Button type="submit" disabled={loading}>
-            {loading ? '登录中' : '登录'}
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
+          <Button type="submit" disabled={submitting || !username || !password}>
+            <LogIn className="size-4" />
+            {submitting ? '登录中' : '登录'}
           </Button>
-        </form>
-        <p className="mt-4 text-center">
-          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
-            返回首页
+
+          <Link
+            to="/"
+            className="text-center text-xs text-muted-foreground hover:text-foreground"
+          >
+            返回站点
           </Link>
-        </p>
+        </form>
       </div>
     </div>
   )
