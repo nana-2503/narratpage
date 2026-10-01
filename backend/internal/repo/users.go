@@ -6,6 +6,7 @@ import (
 
 	"narratpage/internal/auth"
 	"narratpage/internal/db"
+	"narratpage/internal/dialect"
 	"narratpage/internal/models"
 )
 
@@ -237,11 +238,18 @@ func (r *Users) RecordSession(tokenID string, userID int64, ip, userAgent string
 }
 
 // SessionAlive 报告会话是否仍然有效（未登出、未过期）。
+// SessionAlive 校验会话是否仍有效，并返回该用户**当前**角色。
+//
 // 签名与 auth.Middleware 的 sessionCheck 对齐。
-func (r *Users) SessionAlive(tokenID string, userID int64) bool {
-	n, err := db.Count(r.DB, r.DBType,
-		"SELECT COUNT(*) FROM sessions WHERE token_id = ? AND user_id = ?", tokenID, userID)
-	return err == nil && n > 0
+// 角色从库里取而不是信任 token 里的快照：降权、停用要立刻生效，
+// 否则旧 token 在有效期内仍能提权。
+func (r *Users) SessionAlive(tokenID string, userID int64) (string, bool) {
+	var role string
+	err := db.QueryRow(r.DB, r.DBType,
+		"SELECT u.role FROM sessions s JOIN users u ON u.id = s.user_id "+
+			"WHERE s.token_id = ? AND s.user_id = ? AND u.active = ?",
+		tokenID, userID, dialect.Dialect(r.DBType).QuoteBool(true)).Scan(&role)
+	return role, err == nil && role != ""
 }
 
 // ListSessions 列出某用户的活跃会话。

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -144,9 +145,10 @@ func extractToken(r *http.Request) (string, bool) {
 // Middleware 认证与授权中间件集合。
 type Middleware struct {
 	secret string
-	// sessionCheck 可选：校验 token 是否仍在有效会话中，
-	// 用于支持「登出所有设备」。为 nil 时跳过（纯无状态模式）。
-	sessionCheck func(jti string, userID int64) bool
+	// sessionCheck 可选：校验 token 是否仍在有效会话中，并返回该用户
+	// 当前角色，用于支持「登出所有设备」与「降权立即生效」。
+	// 为 nil 时跳过（纯无状态模式），此时角色只能取 token 里的声明。
+	sessionCheck func(jti string, userID int64) (role string, ok bool)
 }
 
 func NewMiddleware(secret string) *Middleware {
@@ -154,7 +156,7 @@ func NewMiddleware(secret string) *Middleware {
 }
 
 // WithSessionCheck 注入会话校验。
-func (m *Middleware) WithSessionCheck(fn func(jti string, userID int64) bool) *Middleware {
+func (m *Middleware) WithSessionCheck(fn func(jti string, userID int64) (string, bool)) *Middleware {
 	m.sessionCheck = fn
 	return m
 }
@@ -169,9 +171,17 @@ func (m *Middleware) resolve(r *http.Request) (*Claims, bool) {
 		return nil, false
 	}
 	if m.sessionCheck != nil && claims.ID != "" {
-		if !m.sessionCheck(claims.ID, claims.Sub) {
+		role, alive := m.sessionCheck(claims.ID, claims.Sub)
+		if !alive {
 			return nil, false
 		}
+		// 角色以数据库为准，不信任 token 里的快照：
+		// 降权、停用要在下一个请求就生效，否则旧 token 在有效期内仍能提权。
+		claims.Role = role
+	} else if claims.Role == "" {
+		// 已认证但没有角色：无法判定权限（如 RBAC 上线前签发的旧 token）。
+		// 按凭据失效处理并要求重新登录，比报 403 更贴近真实原因。
+		return nil, false
 	}
 	return claims, true
 }
@@ -203,10 +213,24 @@ func (m *Middleware) Require(next http.Handler) http.Handler {
 }
 
 // RequireCap 要求具备指定权限，否则 403。
+//
+// 自身完成身份解析，不依赖调用方先挂 Require：否则漏挂时上下文里没有
+// 用户，Can 恒为 false，表现为「谁都 403」这种极难定位的故障。
 func (m *Middleware) RequireCap(c Capability, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if UserFromContext(r.Context()) == nil {
+			claims, ok := m.resolve(r)
+			if !ok {
+				writeErr(w, "登录已过期，请重新登录")
+				return
+			}
+			r = r.WithContext(context.WithValue(r.Context(), userKey, claims))
+		}
 		if !Can(r.Context(), c) {
-			writeErrStatus(w, http.StatusForbidden, "没有权限执行此操作")
+			// 带上角色与所需权限点：笼统的「没有权限」无法定位问题，
+			// 而这里最常见的成因就是角色不符或 token 已失效。
+			writeErrStatus(w, http.StatusForbidden,
+				fmt.Sprintf("当前角色「%s」缺少 %s 权限", RoleFromContext(r.Context()), c))
 			return
 		}
 		next.ServeHTTP(w, r)

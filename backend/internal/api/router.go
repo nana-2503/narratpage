@@ -135,7 +135,9 @@ func registerRoutes(mux *http.ServeMux, cfg config.Config, deps Deps) {
 	mux.HandleFunc("GET /api/robots.txt", robotsHandler(deps, cfg))
 	mux.HandleFunc("GET /api/feed.xml", feedHandler(deps, cfg))
 	mux.HandleFunc("GET /api/feed/atom.xml", atomHandler(deps, cfg))
-	mux.HandleFunc("GET /api/stats", statsHandler(deps))
+	// 概览数据含「按角色的用户数」等内部信息，必须认证后才可读，
+	// 否则匿名访问者能直接探知管理员账号数量。
+	mux.Handle("GET /api/stats", mw.Require(statsHandler(deps)))
 
 	// ---------- 重定向 ----------
 	mux.Handle("GET /api/redirects", mw.Require(mw.RequireCap(auth.CapManageRedirects, listRedirects(deps))))

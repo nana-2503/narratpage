@@ -912,18 +912,69 @@ func TestSitemapAndRobots(t *testing.T) {
 	}
 }
 
-// TestStats 统计接口。
+// TestStats 统计接口。含按角色的用户数，属内部信息，必须认证后才可读。
 func TestStats(t *testing.T) {
 	e := newTestEnv(t)
-	code, stats := e.do(t, "GET", "/stats", nil, false)
+
+	if code, _ := e.do(t, "GET", "/stats", nil, false); code != http.StatusUnauthorized {
+		t.Fatalf("匿名访问统计接口应 401，实际 %d", code)
+	}
+
+	e.token = e.login(t, "admin", "test-password-123")
+	code, stats := e.do(t, "GET", "/stats", nil, true)
 	if code != 200 {
 		t.Fatalf("统计接口失败: %d", code)
 	}
-	for _, key := range []string{"posts", "comments", "views", "media"} {
+	for _, key := range []string{"posts", "comments", "views", "media", "users"} {
 		if _, ok := stats[key]; !ok {
 			t.Fatalf("统计缺少字段 %s: %v", key, stats)
 		}
 	}
+}
+
+// TestDeactivatedUserLosesAccess 停用账号后既有 token 立即失效，
+// 且降权无需重新登录即生效——两者都依赖「角色以数据库为准」。
+func TestDeactivatedUserLosesAccess(t *testing.T) {
+	e := newTestEnv(t)
+	adminTok := e.login(t, "admin", "test-password-123")
+
+	code, u := e.do(t, "POST", "/users", map[string]any{
+		"username": "tmp-admin", "password": "test-password-123", "role": "admin",
+	}, true)
+	if code != http.StatusCreated {
+		t.Fatalf("创建账号失败: %d", code)
+	}
+	id := int(u["id"].(float64))
+
+	tmpTok := e.login(t, "tmp-admin", "test-password-123")
+	if code, _ := e.do(t, "GET", "/users", nil, true); code != 200 {
+		t.Fatalf("新建的 admin 应能读用户列表，实际 %d", code)
+	}
+
+	// 降权为 subscriber，同一 token 不重新登录
+	if code, _ := e.do(t, "PUT", "/users/"+itoa(id), map[string]any{
+		"role": "subscriber",
+	}, true); code != 200 {
+		t.Fatal("降权失败")
+	}
+	e.token = tmpTok
+	if code, _ := e.do(t, "GET", "/users", nil, true); code != http.StatusForbidden {
+		t.Fatalf("降权后同一 token 应 403，实际 %d", code)
+	}
+
+	// 停用后会话应立即吊销
+	e.token = adminTok
+	if code, _ := e.do(t, "PUT", "/users/"+itoa(id), map[string]any{
+		"active": false,
+	}, true); code != 200 {
+		t.Fatal("停用失败")
+	}
+	e.token = tmpTok
+	if code, _ := e.do(t, "GET", "/stats", nil, true); code != http.StatusUnauthorized {
+		t.Fatalf("停用后旧 token 应 401，实际 %d", code)
+	}
+
+	e.token = adminTok
 }
 
 // TestNeighbors 上下篇导航。
