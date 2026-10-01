@@ -70,7 +70,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl flex-1 px-4 pb-16">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16">
         {/* 粘性筛选栏：搜索 + 分类，滚动时始终可达 */}
         <div className="sticky top-12 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
           <form

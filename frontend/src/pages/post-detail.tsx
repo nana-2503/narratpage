@@ -132,7 +132,7 @@ export default function PostDetail() {
     return (
       <div className="min-h-screen bg-background">
         <SiteHeader />
-        <main className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
+        <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
           文章不存在或未发布
         </main>
       </div>
@@ -143,7 +143,7 @@ export default function PostDetail() {
     return (
       <div className="min-h-screen bg-background">
         <SiteHeader />
-        <main className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
+        <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
           {postError ? `加载失败：${postError.message}` : '加载中'}
         </main>
       </div>
@@ -153,7 +153,7 @@ export default function PostDetail() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl flex-1 px-4 pb-16 pt-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-6">
         <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
           ← 返回
         </Link>
