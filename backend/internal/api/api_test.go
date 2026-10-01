@@ -197,6 +197,41 @@ func TestPostsValidation(t *testing.T) {
 	}
 }
 
+// TestListStatusAllSentinel 后台「全部」标签页以 status=all 请求列表。
+//
+// 回归测试：早期实现把 all 当作精确状态匹配（p.status = 'all'），
+// 导致文章/页面列表恒为空。all 必须归一化为「不按状态过滤」。
+func TestListStatusAllSentinel(t *testing.T) {
+	e := newTestEnv(t)
+	e.token = e.login(t, "admin", "test-password-123")
+
+	if code, _ := e.do(t, "POST", "/posts", map[string]any{
+		"title": "all-草稿", "content": "x", "status": "draft",
+	}, true); code != http.StatusCreated {
+		t.Fatalf("创建草稿失败: %d", code)
+	}
+	if code, _ := e.do(t, "POST", "/posts", map[string]any{
+		"title": "all-已发布", "content": "x", "status": "published",
+	}, true); code != http.StatusCreated {
+		t.Fatalf("创建已发布失败: %d", code)
+	}
+
+	for _, reqURL := range []string{"/posts?status=all", "/posts?status=All"} {
+		_, body := e.do(t, "GET", reqURL, nil, true)
+		items, _ := body["items"].([]any)
+		if total, _ := body["total"].(float64); total < 2 || len(items) < 2 {
+			t.Fatalf("%s 应返回全部未删除内容，得到 total=%v items=%d", reqURL, body["total"], len(items))
+		}
+	}
+
+	// 空 status 与 all 等价
+	_, plain := e.do(t, "GET", "/posts", nil, true)
+	_, all := e.do(t, "GET", "/posts?status=all", nil, true)
+	if plain["total"] != all["total"] {
+		t.Fatalf("status=all 应与缺省一致: %v vs %v", plain["total"], all["total"])
+	}
+}
+
 // TestPostSearchLikeEscaping 搜索中的 LIKE 通配符按字面量处理。
 //
 // 回归测试：早期实现在 MySQL 上写 ESCAPE '\' 会语法错误，

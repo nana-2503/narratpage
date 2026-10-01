@@ -209,9 +209,16 @@ func buildPostQuery(r *http.Request, defaultType models.ContentType) repo.PostQu
 		typ = models.ContentType(v)
 	}
 
+	// status=all 是后台「全部」标签页的约定值，语义为「不按状态过滤」，
+	// 必须归一化为空串；否则会落到 p.status = 'all' 的精确匹配上导致列表恒空。
+	status := strings.TrimSpace(q.Get("status"))
+	if strings.EqualFold(status, "all") {
+		status = ""
+	}
+
 	return repo.PostQuery{
 		Type:     typ,
-		Status:   q.Get("status"),
+		Status:   status,
 		Category: q.Get("category"),
 		Tag:      q.Get("tag"),
 		Author:   author,
