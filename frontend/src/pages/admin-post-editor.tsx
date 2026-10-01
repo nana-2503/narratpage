@@ -26,6 +26,7 @@ import { PageHeader } from '@/components/admin-page-header'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { RevisionPanel } from '@/components/revision-panel'
 import { TagInput } from '@/components/tag-input'
+import { MediaPicker } from '@/components/media-picker'
 import { statusLabel, statusVariant } from '@/pages/admin-posts'
 
 export default function AdminPostEditor() {
@@ -263,13 +264,7 @@ export default function AdminPostEditor() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="cover">封面图 URL</Label>
-                <Input
-                  id="cover"
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="https://..."
-                />
+                <MediaPicker value={coverUrl} onChange={setCoverUrl} />
               </div>
             </div>
 

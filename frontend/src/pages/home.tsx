@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { Search, X } from 'lucide-react'
-import { api } from '@/lib/api'
-import { formatDate } from '@/lib/markdown'
+import { LayoutGrid, List, Search, X } from 'lucide-react'
+import { api, type Post } from '@/lib/api'
+import { formatDate, stripMarkdown } from '@/lib/markdown'
 import { useAsync } from '@/hooks/use-async'
 import { useSite } from '@/hooks/use-site'
 import { cn } from '@/lib/utils'
+import { DEFAULT_VIEW, loadView, saveView, type PostView } from '@/lib/view-pref'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,12 @@ export default function Home() {
   const [keyword, setKeyword] = useState(q)
   // URL 中的 q 被外部改变（如点击标签）时，同步回输入框
   useEffect(() => setKeyword(q), [q])
+
+  const [view, setView] = useState<PostView>(loadView)
+  const switchView = (v: PostView) => {
+    setView(v)
+    saveView(v)
+  }
 
   const { data: categoriesData } = useAsync(() => api.listCategories(), [])
   const categories = categoriesData?.items ?? []
@@ -162,9 +169,12 @@ export default function Home() {
         )}
 
         {data && !error && (
-          <p className="pt-4 text-xs text-muted-foreground tabular-nums">
-            {filtered ? `${data.total} 条结果` : `共 ${data.total} 篇`}
-          </p>
+          <div className="flex items-center justify-between gap-2 pt-4">
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {filtered ? `${data.total} 条结果` : `共 ${data.total} 篇`}
+            </p>
+            <ViewToggle value={view} onChange={switchView} />
+          </div>
         )}
 
         {!error && data && data.items.length === 0 && (
@@ -173,7 +183,7 @@ export default function Home() {
           </p>
         )}
 
-        {data && data.items.length > 0 && (
+        {data && data.items.length > 0 && view === 'list' && (
           <ul className="mt-2 overflow-hidden rounded-md border border-border">
             {data.items.map((post, i) => (
               <li key={post.id} className={i > 0 ? 'border-t border-border' : undefined}>
@@ -198,6 +208,16 @@ export default function Home() {
                     {formatDate(post.published_at || post.created_at)}
                   </span>
                 </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {data && data.items.length > 0 && view === 'card' && (
+          <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+            {data.items.map((post) => (
+              <li key={post.id} className="flex">
+                <PostCard post={post} />
               </li>
             ))}
           </ul>
@@ -241,6 +261,80 @@ export default function Home() {
       </main>
       <SiteFooter />
     </div>
+  )
+}
+
+function ViewToggle({ value, onChange }: { value: PostView; onChange: (v: PostView) => void }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="列表视图"
+      className="flex shrink-0 rounded-md border border-border p-0.5"
+    >
+      {(
+        [
+          { value: DEFAULT_VIEW, label: '列表', icon: List },
+          { value: 'card' as const, label: '卡片', icon: LayoutGrid },
+        ] as const
+      ).map(({ value: v, label, icon: Icon }) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          aria-label={label}
+          title={label}
+          onClick={() => onChange(v)}
+          className={cn(
+            'flex size-7 items-center justify-center rounded-sm transition-colors',
+            'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+            value === v
+              ? 'bg-secondary text-secondary-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Icon className="size-4" />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** 卡片视图条目：封面图 + 标题 + 摘要 + 元信息 */
+function PostCard({ post }: { post: Post }) {
+  // 无摘要时从正文截取，避免卡片只有一行标题而高度参差
+  const excerpt = post.summary?.trim() || stripMarkdown(post.content || '').slice(0, 90)
+  return (
+    <Link
+      to={`/post/${post.slug}`}
+      className="flex w-full flex-col overflow-hidden rounded-md border border-border transition-colors hover:border-foreground/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {post.cover_url && (
+        <img
+          src={post.cover_url}
+          alt=""
+          loading="lazy"
+          className="aspect-video w-full shrink-0 object-cover"
+        />
+      )}
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
+        <h2 className="line-clamp-2 text-sm font-medium leading-snug" title={post.title}>
+          {post.title}
+        </h2>
+        {excerpt && <p className="line-clamp-2 text-xs text-muted-foreground">{excerpt}</p>}
+        <div className="mt-auto flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+          {post.sticky && <span className="shrink-0">置顶</span>}
+          {post.category_name && (
+            <span className="min-w-0 truncate" title={post.category_name}>
+              {post.category_name}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 tabular-nums">
+            {formatDate(post.published_at || post.created_at)}
+          </span>
+        </div>
+      </div>
+    </Link>
   )
 }
 
