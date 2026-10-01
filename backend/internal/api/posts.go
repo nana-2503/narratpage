@@ -63,10 +63,14 @@ func getPost(deps Deps) http.HandlerFunc {
 			notFound(w, "文章不存在")
 			return
 		}
-		// 访问密码保护：正文不返回，前端凭 cookie 后续取
+		// 访问密码保护：正文只对「持有效解锁凭据」或「有编辑权的人」下发。
+		// 这里绝不能用查询参数当凭据——那等于没有密码。
 		if post.HasPassword {
-			if !r.URL.Query().Has("unlocked") {
+			if !postPassGranted(r, post, viewer, deps.JWTSecret) {
 				post.Content = ""
+				// 同一 URL 对不同访客返回不同内容，不能进任何共享缓存
+				w.Header().Set("Cache-Control", "private, no-store")
+				post.Views = deps.Posts.IncrementViews(post.ID)
 			} else {
 				post.Views = deps.Posts.IncrementViews(post.ID)
 			}
