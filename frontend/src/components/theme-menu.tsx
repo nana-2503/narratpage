@@ -48,14 +48,16 @@ export function ThemeMenu({ align = 'end' }: { align?: 'start' | 'center' | 'end
         render={
           <Button
             variant="ghost"
-            size="icon"
-            className="size-8"
+            size="sm"
+            className="gap-1.5 px-2"
             aria-label="主题设置"
             title="主题设置"
           />
         }
       >
         {isDark ? <Moon className="size-4" /> : <Sun className="size-4" />}
+        {/* 面板里还有圆角等设置，纯图标入口看不出可点，这里给出文字提示 */}
+        <span className="hidden text-sm sm:inline">主题</span>
       </PopoverTrigger>
 
       <PopoverContent align={align} className="w-64">
